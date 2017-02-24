@@ -1,0 +1,3 @@
+Linux 24/2]
+Made a repository and a log file.
+Pushed to origin.
