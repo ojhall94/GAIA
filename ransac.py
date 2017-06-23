@@ -1,30 +1,23 @@
-# !/usr/bin/env python
+# !/usr/bin/env python3
 # -*- coding: utf-8 -*-
 # Oliver J. Hall
 
 import numpy as np
-import pandas as pd
-
-import glob
-import sys
-import corner as corner
-from tqdm import tqdm
-
-import matplotlib
-import seaborn as sns
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
+import pandas as pd
+import glob
+import sys
+import matplotlib
 matplotlib.rcParams['xtick.direction'] = 'out'
 matplotlib.rcParams['ytick.direction'] = 'out'
 
 from statsmodels.robust.scale import mad as mad_calc
 from sklearn import linear_model
-import scipy.stats as stats
+import corner as corner
 
 import astropy.coordinates as coord
 import gaia.tap as gt
-
-
 
 def get_values(df):
     '''This function corrects for extinction and sets the RC search range'''
@@ -93,51 +86,62 @@ if __name__ == '__main__':
         ax[0].set_xlim(-2.0,-0.25)
         ax[0].set_ylim(7.0,10.0)
 
-        ''' x = M_ks
-            y = m_ks
-        '''
+        '''Time for a RANSAC plot'''
+        iters = 500
         x = M_ks
         y = m_ks
+        Y = y.reshape((len(y),1))
+        line_Y = np.arange(0,len(Y))
 
-        #Getting the KDE of the 2D distribution
-        xxyy = np.ones([len(x),2])
-        xxyy[:,0] = x
-        xxyy[:,1] = y
-        kde = stats.gaussian_kde(xxyy.T)
+        #Setting up the array
+        sample = np.ones([iters,2])
+        mask = np.zeros(len(y))
 
-        #Setting up a 2D meshgrid
-        size = 50
-        xx = np.linspace(x.min(),x.max(),size)
-        yy = np.linspace(y.min(),y.max(),size)
-        X, Y = np.meshgrid(xx,yy)
-        d = np.ones([size,size])
+        #Iterating over multiple RANSAC runs
+        for i in range(iters):
+            sample[i], inlier_mask = linear(x,y,Y)
+            mask += np.ones(len(inlier_mask)) * inlier_mask
 
-        #Calculating the KDE value for each point on the grid
-        for idx, i in tqdm(enumerate(xx)):
-            for jdx, j in enumerate(yy):
-                d[jdx,idx] = kde([i,j])
+        #Plotting a cornerplot
+        labels = ['Intercept','Slope']
+        figc = corner.corner(sample, labels=labels)
 
-        #Rough attempt at finding line of highest density
-        line = np.zeros_like(yy)
-        for idy, row in enumerate(yy):
-            space = d[idy]
-            med = np.nanmax(space)
-            line[idy] = xx[space==med]
+        #Taking median results
+        results = np.zeros(2)
+        results[0] = np.median(sample[:,0])
+        results[1] = np.median(sample[:,1])
 
-        ax[1].hist2d(xxyy[:,0],xxyy[:,1],bins=np.sqrt(len(x)))
-        ax[1].contour(X,Y,d,10,cmap='copper')
-        ax[1].plot(line,yy,c='r')
+        #Flipping axes
+        ly = np.linspace(y.min(),y.max(),100)
+        lx = results[0] + results[1]*ly
+
+        #Taking inliers in more than 50% of cases
+        mask = mask > (iters/2)
+
+        '''Plotting results'''
+        # ax[1].scatter(M_ks[mask],m_ks[mask],s=5,color='yellowgreen',label='Inliers')
+        # ax[1].scatter(M_ks[~mask],m_ks[~mask],s=5,color='grey',label='Outliers')
+        ax[1].hist2d(x,y,bins=np.sqrt(len(x)))
+        ax[1].plot(lx,ly,c='red',lw=2,label='RANSAC fit')
+
         ax[1].set_xlabel('Absolute K-band magnitude')
         ax[1].set_ylabel('Apparent K-band magnitude')
-        ax[1].axvline(-1.626,c='k',linestyle='--') # Hawkins+17
-        ax[1].axvline(-1.626+0.057, c='r', linestyle='-.')
-        ax[1].axvline(-1.626-0.057, c='r', linestyle='-.')
+        ax[1].axvline(-1.626,c='y',lw=3,linestyle='--',label='Hawkins+17') # Hawkins+17
+        ax[1].axvline(-1.626+0.057, c='y', lw=2,linestyle='-.')
+        ax[1].axvline(-1.626-0.057, c='y', lw=2,linestyle='-.')
         ax[1].set_xlim(-2.0,-0.25)
         ax[1].set_ylim(7.0,10.0)
+        ax[1].legend()
 
         fig.tight_layout()
-        plt.show()
+        fig.savefig('ransac.png')
+        figc.savefig('ransac_corner.png')
+
+        plt.show('all')
         plt.close('all')
+
+
+
 
     gaia_on_tap = False
     if gaia_on_tap:
