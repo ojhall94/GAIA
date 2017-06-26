@@ -11,7 +11,7 @@ import corner as corner
 from tqdm import tqdm
 
 import matplotlib
-import seaborn as sns
+# import seaborn as sns
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 matplotlib.rcParams['xtick.direction'] = 'out'
@@ -75,9 +75,17 @@ def linear(x,y,X):
 
     return coef, inlier_mask
 
-def fBounds():
-    start = [0.1,0.1,0.5,0.2,0.1]
-    bound = [(0.,0.3),(0.01,0.2),(0.,1.),(0.,1.),(0.01,0.2)]
+def fBounds(X,Y,d):
+    loc = np.where(d==np.max(d))
+    Mo = Y[loc]
+
+    '''Offset | Bg_variance | Q | Model Mean | Model Sig | Over Mean | Over Sig | Fg_variance'''
+    start = [0.05, 0.4, 0.5, \
+            -1.6, 0.15, \
+            Mo, 0.5, 0.3]
+    bound = [(0.,0.3), (0.01,0.5), (0.,1.),\
+            (-1.8,-0.5),(0.001,0.2),\
+            (7.0,10.0),(0.1,2.5),(0.01,0.8)]
     return start,bound
 
 class cModel:
@@ -87,8 +95,26 @@ class cModel:
         self.data = _data
 
     def bg(self, p):
-        c,_,_,_,_ = p
+        c,_,_,_,_,_,_,_ = p
         return np.ones_like(self.X) * c
+
+    def fg(self,p):
+        _,_,_,M,sig,Mo,sig_o,_ = p
+
+        '''Build the basic structure in x and y'''
+        mod = np.zeros(self.X.shape)
+        for idx, row in enumerate(self.X):
+            mod[idx] = (1/(np.sqrt(2*np.pi) * sig)) * np.exp(-(row - M)**2/(2*sig**2))
+        mod /=  (1/(np.sqrt(2*np.pi) * sig))
+
+        '''Modulate using a second gaussian in y'''
+        trend = (1/(np.sqrt(2*np.pi) * sig_o)) * np.exp(-(self.Y[:,0] - Mo)**2/(2*sig_o**2))
+        trend /= (1/(np.sqrt(2*np.pi) * sig_o))
+
+        for idx, row in enumerate(self.X):
+            mod[idx] *= trend[idx]
+
+        return mod
 
 class cLikelihood:
     def __init__(self, _data, _Model, _Prior):
@@ -97,23 +123,21 @@ class cLikelihood:
         self.Prior = _Prior
 
     def lnlike_bg(self, p):
-        _,b_var,Q,_,_ = p
+        _,b_var,Q,_,_,_,_,_ = p
         mod = self.Model.bg(p)
         ll_bg = -0.5 * (self.data - mod)**2 / b_var**2 - np.log(b_var)
         arg1 = ll_bg + np.log(1.0 - Q)
         return arg1
 
     def lnlike_fg(self, p):
-        _,_,Q,M,f_var = p
-        ll_fg = -0.5 * (self.data - M)**2 / f_var**2 - np.log(f_var)
+        _,_,Q,M,_,_,_,f_var = p
+        mod = self.Model.fg(p)
+        ll_fg = -0.5 * (self.data - mod)**2 / f_var**2 - np.log(f_var)
         arg2 = ll_fg + np.log(Q)
         return arg2
 
     def lnprob(self, p):
         if not np.isfinite(self.Prior(p)):
-            return -np.inf
-
-        if p[0] > p[3]:
             return -np.inf
 
         #Doing the likelihood equation in parts
@@ -191,6 +215,8 @@ if __name__ == '__main__':
             med = np.nanmax(space)
             line[idy] = xx[space==med]
 
+        d /= d.max()
+
         #Plotting density with estimated Absolute RC Magnitude
         ax1[1].hist2d(xxyy[:,0],xxyy[:,1],bins=np.sqrt(len(x)))
         ax1[1].contour(X,Y,d,10,cmap='copper')
@@ -218,55 +244,76 @@ if __name__ == '__main__':
         #_________________Building Density distribution_________________________
 
     if fold:
-        print('hello world')
+        start_params, bounds = fBounds(X,Y,d)
+        Prior = cPrior.Prior(_bounds = bounds)
 
-    start_params, bounds = fBounds()
-    Prior = cPrior.Prior(_bounds = bounds)
+        Model = cModel(X,Y,d)
+        Like = cLikelihood(d,Model,Prior)
 
-    Model = cModel(X,Y,d)
-    Like = cLikelihood(d,Model,Prior)
+        print "\nInitialising run"
+        print "\nLike ##########", Like(start_params)
+        print "Prior #########", Prior(start_params), "\n"
+        print "Starting guesses:\n", start_params
+        print "Priors: \n", bounds
 
-    print "\nInitialising run"
-    print "\nLike ##########", Like(start_params)
-    print "Prior #########", Prior(start_params), "\n"
-    print "Starting guesses:\n", start_params
-    print "Priors: \n", bounds
+        Fit = cMCMC.MCMC('TRILEGAL',start_params, Like, Prior,\
+                        _start_kdes=0,_ntemps=1,_niter=500)
 
-    Fit = cMCMC.MCMC('TRILEGAL',start_params, Like, Prior,\
-                    _start_kdes=0,_ntemps=1,_niter=500)
+        chain = Fit.run()
+        fg_pp,_ = Fit.postprob(X)
 
-    chain = Fit.run()
-    fg_pp,_ = Fit.postprob(X)
+        labels=['$Offset$','$Var_{bg}$','$Q$','$RC_M$','$\sigma$','$M_o$','$\sigma_o$','$Var_{fg}$']
+        figc = corner.corner(chain, labels=labels)
 
-    labels=['c','c_var','Q','f_M','f_var']
-    figc = corner.corner(chain, labels=labels)
+        results = pd.DataFrame(columns=['Offset','Bg_var','Q','RC_M','Sigma','Mo','sig_o','Fg_var'])
+        stddevs = pd.DataFrame(columns=['Offset_err','Bg_var_err','Qerr','RC_M_err','Sigma_err','Mo_err','sig_o_err','Fg_var_err'])
+        results.loc[0], stddevs.loc[0] = fResults(chain)
 
-    results = pd.DataFrame(columns=['a','b','c','Q','w'])
-    stddevs = pd.DataFrame(columns=['aerr','berr','cerr','Qerr','werr'])
-    results.loc[0], stddevs.loc[0] = fResults(chain)
+        print(chain.shape)
+        print(results.loc[0])
+        print(stddevs.loc[0])
 
-    print(chain.shape)
-    print(results.loc[0])
-    print(stddevs.loc[0])
+        rc_line = np.ones(X.shape[1]) * results.loc[0]['RC_M']
 
-    #Plots 3d scatter
-    fig1 = plt.figure()
-    ax1 = fig1.gca(projection='3d')
-    scat1 = ax1.scatter(X,Y,d,c=fg_pp,cmap="Blues_r")
-    cmap = fig1.colorbar(scat1,label='Posterior Probability')
-    ax1.set_xlabel('X')
-    ax1.set_ylabel('Y')
-    ax1.set_zlabel('Normalised Kernel Estimated Density')
+        #Plots 3d scatter
+        fig1 = plt.figure()
+        ax1 = fig1.gca(projection='3d')
+        scat1 = ax1.scatter(X,Y,d,c=fg_pp,cmap="Blues_r")
+        cmap = fig1.colorbar(scat1,label='Posterior Probability')
+        ax1.set_xlabel('X')
+        ax1.set_ylabel('Y')
+        ax1.set_zlabel('Normalised Kernel Estimated Density')
 
-    #Plots top down pixel view (works better on larger arrays)
-    fig2, ax2 = plt.subplots()
-    scat2 = ax2.scatter(X,Y,marker=",",c=fg_pp,s=200,cmap="Blues_r")
-    cmap = fig2.colorbar(scat2,label='Posterior Probability')
-    ax2.set_xlabel('X')
-    ax2.set_ylabel('Y')
+        fig2, ax2 = plt.subplots()
+        ax2.hist2d(xxyy[:,0],xxyy[:,1],bins=np.sqrt(len(x)))
+        ax2.contour(X,Y,Model.fg(results.loc[0]),10,cmap='copper')
+        ax2.plot(line,yy,c='c')
+        ax2.plot(rc_line,yy,linewidth=2,c='r')
+        ax2.set_xlabel('Absolute K-band magnitude')
+        ax2.set_ylabel('Apparent K-band magnitude')
+        ax2.axvline(-1.626,c='k',linestyle='--') # Hawkins+17
+        ax2.axvline(-1.626+0.057, c='r', linestyle='-.')
+        ax2.axvline(-1.626-0.057, c='r', linestyle='-.')
+        ax2.set_xlim(-2.0,-0.25)
+        ax2.set_ylim(7.0,10.0)
 
-    plt.show()
-    plt.close('all')
+
+        fg = Model.fg(results.loc[0])
+        bg = Model.bg(results.loc[0])
+        fig = plt.figure()
+        ax = fig.gca(projection='3d')
+        ax.scatter(X,Y,bg,c='r')
+        ax.scatter(X,Y,fg)
+        ax.scatter(X,Y,d,c='c')
+        plt.show()
+
+        fig = plt.figure()
+        ax = fig.gca(projection='3d')
+        ax.scatter(X,Y,fg)
+        plt.show()
+
+        plt.show()
+        plt.close('all')
 
     gaia_on_tap = False
     if gaia_on_tap:
