@@ -46,7 +46,7 @@ def get_values(df):
     M_ks = M_ks[sel]
     m_ks = m_ks[sel]
 
-    sel = np.where(m_ks < 10.)
+    sel = np.where(m_ks < 16.)
     M_ks = M_ks[sel]
     m_ks = m_ks[sel]
 
@@ -80,12 +80,12 @@ def fBounds(X,Y,d):
     Mo = Y[loc]
 
     '''Offset | Bg_variance | Q | Model Mean | Model Sig | Over Mean | Over Sig | Fg_variance'''
-    start = [0.05, 0.4, 0.5, \
+    start = [0.05, 0.1, 0.5, \
             -1.6, 0.15, \
-            Mo, 0.5, 0.3]
-    bound = [(0.,0.3), (0.01,0.5), (0.,1.),\
+            Mo, 2.0, 0.3]
+    bound = [(0.,0.2), (0.01,0.2), (0.,1.),\
             (-1.8,-0.5),(0.001,0.2),\
-            (7.0,10.0),(0.1,2.5),(0.01,0.8)]
+            (7.0,16.0),(0.1,4.0),(0.01,0.8)]
     return start,bound
 
 class cModel:
@@ -184,7 +184,7 @@ if __name__ == '__main__':
         ax1[0].axvline(-1.626+0.057, c='r', linestyle='-.')
         ax1[0].axvline(-1.626-0.057, c='r', linestyle='-.')
         ax1[0].set_xlim(-2.0,-0.25)
-        ax1[0].set_ylim(7.0,10.0)
+        ax1[0].set_ylim(7.0,16.0)
 
         #_________________Building Density distribution_________________________
         x = M_ks
@@ -227,7 +227,7 @@ if __name__ == '__main__':
         ax1[1].axvline(-1.626+0.057, c='r', linestyle='-.')
         ax1[1].axvline(-1.626-0.057, c='r', linestyle='-.')
         ax1[1].set_xlim(-2.0,-0.25)
-        ax1[1].set_ylim(7.0,10.0)
+        ax1[1].set_ylim(7.0,16.0)
         fig1.tight_layout()
 
         #Plotting density in 3D for clairty
@@ -257,7 +257,7 @@ if __name__ == '__main__':
         print "Priors: \n", bounds
 
         Fit = cMCMC.MCMC('TRILEGAL',start_params, Like, Prior,\
-                        _start_kdes=0,_ntemps=1,_niter=500)
+                        _start_kdes=0,_ntemps=1,_niter=1000)
 
         chain = Fit.run()
         fg_pp,_ = Fit.postprob(X)
@@ -287,8 +287,8 @@ if __name__ == '__main__':
         fig2, ax2 = plt.subplots()
         ax2.hist2d(xxyy[:,0],xxyy[:,1],bins=np.sqrt(len(x)))
         ax2.contour(X,Y,Model.fg(results.loc[0]),10,cmap='copper')
-        ax2.plot(line,yy,c='c')
-        ax2.plot(rc_line,yy,linewidth=2,c='r')
+        # ax2.plot(line,yy,c='c')
+        ax2.plot(rc_line,yy,linewidth=2,c='c')
         ax2.set_xlabel('Absolute K-band magnitude')
         ax2.set_ylabel('Apparent K-band magnitude')
         ax2.axvline(-1.626,c='k',linestyle='--') # Hawkins+17
