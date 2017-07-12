@@ -5,6 +5,20 @@ import scipy.interpolate as interpolate
 import scipy.integrate as integrate
 
 
+class Master:
+    '''A 'black box' likelihood function that passes through the proper
+    likelihood function, and saves any additional metadata that may be returned.
+    '''
+    def __init__(self,_Like,_sp,_nwalkers,_niters,_ndims):
+        self.Like = _Like
+        self.blob = []
+
+    def __call__(self,p):
+        logL = self.Like(p)
+        self.blob.append(logL)
+        return logL
+
+
 class MCMC:
     '''Modified MCMC Class, with some additional features & functions:
         -Allows reading for KDEs as walker distributions
@@ -13,18 +27,21 @@ class MCMC:
         -Has functions to return the Mixture Model posteriors and Bayes factor
     '''
 
-    def __init__(self, _select, _params, _like, _prior,_start_kdes=0,_ntemps=1,_niter=500):
+    def __init__(self, _select, _params, _Like, _prior,_start_kdes=0,_ntemps=1,_niter=500):
         self.niter = _niter
         self.ntemps = _ntemps
         self.nwalkers = 200
         self.start_params = np.array(_params)
-        self.like = _like
+        self.Like = _Like
         self.prior = _prior
         self.ndims = len(self.start_params)
         self.select = _select
         self.max_conv = 5
         self.conv_accept = 0.02
         self.start_kdes = _start_kdes
+
+        self.Mlike = Master(self.Like,self.start_params,self.nwalkers,self.niter*self.max_conv,self.ndims)
+
 
     def dump(self):
         '''Can be called to dump the sampler
@@ -36,7 +53,7 @@ class MCMC:
         '''
         self.sampler = emcee.PTSampler(self.ntemps, self.nwalkers, \
                                   self.ndims, \
-                                  self.like, self.prior, \
+                                  self.Mlike, self.prior, \
                                        threads = 2)
         # print(self.ndims)
         p0 = np.zeros([self.ntemps, self.nwalkers, self.ndims])
@@ -70,7 +87,6 @@ class MCMC:
                 break
         samples = self.sampler.chain[0,:,:,:].reshape((-1, self.ndims))
 
-        # np.savetxt('../Output/samplechain_'+self.select+'.txt', samples)
         return np.array(samples)
 
     def postprob(self, X):
