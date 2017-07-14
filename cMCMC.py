@@ -36,7 +36,7 @@ class MCMC:
         self.prior = _prior
         self.ndims = len(self.start_params)
         self.select = _select
-        self.max_conv = 5
+        self.max_conv = 1
         self.conv_accept = 0.02
         self.start_kdes = _start_kdes
 
@@ -100,8 +100,8 @@ class MCMC:
 
         for i in range(lotemp.shape[0]):
             for j in range(lotemp.shape[1]):
-                fg = self.like.lnlike_fg(lotemp[i,j])
-                bg = self.like.lnlike_bg(lotemp[i,j])
+                fg = self.Like.lnlike_fg(lotemp[i,j])
+                bg = self.Like.lnlike_bg(lotemp[i,j])
                 fg_pp += np.exp(fg - np.logaddexp(fg, bg)).ravel()
                 bg_pp += np.exp(bg - np.logaddexp(fg, bg)).ravel()
                 norm += 1

@@ -176,6 +176,7 @@ if __name__ == '__main__':
 
         #Plotting data with RC Absolute magnitude
         M_ks, m_ks = get_values(df)
+
         fig1, ax1 = plt.subplots(2)
         ax1[0].scatter(M_ks, m_ks, edgecolor='b',facecolor='none')
         ax1[0].set_xlabel('Absolute K-band magnitude')
@@ -243,6 +244,7 @@ if __name__ == '__main__':
 
         #_________________Building Density distribution_________________________
 
+    '''MCMC Run'''
     if fold:
         start_params, bounds = fBounds(X,Y,d)
         Prior = cPrior.Prior(_bounds = bounds)
@@ -257,7 +259,7 @@ if __name__ == '__main__':
         print "Priors: \n", bounds
 
         Fit = cMCMC.MCMC('TRILEGAL',start_params, Like, Prior,\
-                        _start_kdes=0,_ntemps=1,_niter=1000)
+                        _start_kdes=0,_niter=1000)
 
         chain = Fit.run()
         fg_pp,_ = Fit.postprob(X)

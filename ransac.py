@@ -38,7 +38,7 @@ def get_values(df):
     M_ks = M_ks[sel]
     m_ks = m_ks[sel]
 
-    sel = np.where(m_ks < 10.)
+    sel = np.where(m_ks < 16.)
     M_ks = M_ks[sel]
     m_ks = m_ks[sel]
 
@@ -84,7 +84,7 @@ if __name__ == '__main__':
         ax[0].axvline(-1.626+0.057, c='r', linestyle='-.')
         ax[0].axvline(-1.626-0.057, c='r', linestyle='-.')
         ax[0].set_xlim(-2.0,-0.25)
-        ax[0].set_ylim(7.0,10.0)
+        ax[0].set_ylim(7.0,16.0)
 
         '''Time for a RANSAC plot'''
         iters = 500
@@ -127,10 +127,10 @@ if __name__ == '__main__':
         ax[1].set_xlabel('Absolute K-band magnitude')
         ax[1].set_ylabel('Apparent K-band magnitude')
         ax[1].axvline(-1.626,c='y',lw=3,linestyle='--',label='Hawkins+17') # Hawkins+17
-        ax[1].axvline(-1.626+0.057, c='y', lw=2,linestyle='-.')
-        ax[1].axvline(-1.626-0.057, c='y', lw=2,linestyle='-.')
+        ax[1].axvline(-1.626+0.057, c='r', linestyle='-.')
+        ax[1].axvline(-1.626-0.057, c='r', linestyle='-.')
         ax[1].set_xlim(-2.0,-0.25)
-        ax[1].set_ylim(7.0,10.0)
+        ax[1].set_ylim(7.0,16.0)
         ax[1].legend()
 
         fig.tight_layout()
