@@ -9,6 +9,7 @@ import glob
 import sys
 import corner as corner
 from tqdm import tqdm
+import emcee
 
 import matplotlib
 # import seaborn as sns
@@ -57,56 +58,40 @@ def get_values(df):
     return M_ks, m_ks
 
 
-class cModel:
-    def __init__(self, _x, _y):
-        self.x = _x
-        self.y = _y
-
-    def fg(self, p):
-        m,Q,M,V = p
-        model = np.ones(len(self.x)) * m
-        return model
-
-    '''Background model is generic'''
-
 class cLikelihood:
-    def __init__(self, _x, _xerr, _y, _Model, _Prior):
+    def __init__(self, _x, _xerr, _y, _Prior):
         self.x = _x
         self.y = _y
         self.xerr = _xerr
-        self.Model = _Model
         self.Prior = _Prior
 
     def lnlike_fg(self, p):
         m,Q,M,V = p
-        mod = self.Model.fg(p)
-
+        mod = np.ones(len(self.x))*m
         ll_fg = -0.5 * (mod - x)**2/self.xerr**2 - np.log(xerr)
-        arg2 = ll_fg + np.log(Q)
-        return arg2
+        return ll_fg
 
     def lnlike_bg(self, p):
         m,Q,M,V = p
-
         ll_bg = -0.5 * (M - y)**2/V**2 - np.log(V)
-        arg1 = ll_bg + np.log(1.0 - Q)
-        return arg1
+        return ll_bg
 
-    def lnprob(self, p):
+    def __call__(self, p):
+        m,Q,M,V = p
+
         if not np.isfinite(self.Prior(p)):
-            return -np.inf
+            return -np.inf, None
 
         #Doing the likelihood equation in parts
-        arg2 = self.lnlike_fg(p)
-        arg1 = self.lnlike_bg(p)
+        ll_fg = self.lnlike_fg(p)
+        arg1 = ll_fg + np.log(Q)
+
+        ll_bg = self.lnlike_bg(p)
+        arg2 = ll_bg + np.log(1.0 - Q)
 
         ll = np.nansum(np.logaddexp(arg1, arg2))
 
-        return ll
-
-    def __call__(self, p):
-        logL = self.lnprob(p)
-        return logL
+        return ll, (arg1,arg2)
 
 def fResults(chain):
     '''Returns standard MCMC results as the median of the solutions, with
@@ -173,14 +158,13 @@ if __name__ == '__main__':
     '''MCMC Run'''
     if fold:
         '''RC_M | Q | Gauss M | V'''
-        start_params = [-1.5, 0.5, 12.,1.0]
+        start_params = np.array([-1.5, 0.5, 12.,1.0])
         bounds = [(-2.0,-0.25), (0,1.),\
                 (7.0,15.0),(0.01,8.)]
 
         Prior = cPrior.Prior(_bounds = bounds)
 
-        Model = cModel(x,y)
-        Like = cLikelihood(x,xerr,y,Model,Prior)
+        Like = cLikelihood(x,xerr,y,Prior)
 
         print "\nInitialising run"
         print "\nLike ##########", Like(start_params)
@@ -188,28 +172,44 @@ if __name__ == '__main__':
         print "Starting guesses:\n", start_params
         print "Priors: \n", bounds
 
-        Fit = cMCMC.MCMC('TRILEGAL',start_params, Like, Prior,\
-                        _start_kdes=0,_niter=100)
+        ndim, nwalkers = 4, 32
+        p0 = [start_params + 1e-5 * np.random.randn(ndim) for k in range(nwalkers)]
 
-        chain = Fit.run()
-        fg_pp,_ = Fit.postprob(x)
+        sampler = emcee.EnsembleSampler(nwalkers, ndim, Like)
+        #Burner run
+        pos,_,_,_ = sampler.run_mcmc(p0,500)
 
+        #Full run
+        sampler.reset()
+        sampler.run_mcmc(pos,1500)
+
+        #Cornerplot
         labels=['$RC_M$','$Q$','$M$','$LnV$']
         figc = corner.corner(chain, labels=labels)
 
+        #Results
         results = pd.DataFrame(columns=['m','Q','M','LnV'])
         stddevs = pd.DataFrame(columns=['m_err','Q_err','M_err','V_err'])
         results.loc[0], stddevs.loc[0] = fResults(chain)
+
+        #Posteriors
+        norm = 0.0
+        post_prob = np.zeros(len(x))
+        for i in range(sampler.chain.shape[1]):
+            for j in range(sampler.chain.shape[0]):
+                ll_fg, ll_bg = sampler.blobs[i][j]
+                post_prob += np.exp(ll_fg - np.logaddexp(ll_fg, ll_bg))
+                norm += 1
+        post_prob /= norm
+
 
         print(chain.shape)
         print(results.loc[0])
         print(stddevs.loc[0])
 
-        fg = Model.fg(results.loc[0])
-
         fig, ax = plt.subplots()
-        ax.scatter(M_ks, m_ks,c=fg_pp)
-        ax.plot(fg,y,c='c',linewidth=3) #Best fit model
+        ax.scatter(M_ks, m_ks,c=post_prob)
+        ax.plot(results.loc[0]['m']*np.ones_like(y),y,c='c',linewidth=3) #Best fit model
         ax.plot(x,results.loc[0]['M']*np.ones_like(x),c='r',linewidth=3)
         ax.set_xlabel('Absolute K-band magnitude')
         ax.set_ylabel('Apparent K-band magnitude')
