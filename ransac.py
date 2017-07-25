@@ -38,7 +38,7 @@ def get_values(df):
     M_ks = M_ks[sel]
     m_ks = m_ks[sel]
 
-    sel = np.where(m_ks < 16.)
+    sel = np.where(m_ks < 10.)
     M_ks = M_ks[sel]
     m_ks = m_ks[sel]
 
@@ -51,9 +51,7 @@ def get_values(df):
 def linear(x,y,X):
     #Fit RANSAC linear regressor
     #Use Hawkins+17 error: 0.057
-
-    model_ransac = linear_model.RANSACRegressor(linear_model.LinearRegression(),\
-                                                residual_threshold=(0.057))
+    model_ransac = linear_model.RANSACRegressor(linear_model.LinearRegression())
     model_ransac.fit(Y,x)
     inlier_mask = model_ransac.inlier_mask_
     line_Y = np.arange(0,len(Y))
@@ -92,6 +90,7 @@ if __name__ == '__main__':
         y = m_ks
         Y = y.reshape((len(y),1))
         line_Y = np.arange(0,len(Y))
+        xerr = 0.05 + np.random.normal(0, 1, len(x)) * 0.005
 
         #Setting up the array
         sample = np.ones([iters,2])
@@ -129,8 +128,8 @@ if __name__ == '__main__':
         ax[1].axvline(-1.626,c='y',lw=3,linestyle='--',label='Hawkins+17') # Hawkins+17
         ax[1].axvline(-1.626+0.057, c='r', linestyle='-.')
         ax[1].axvline(-1.626-0.057, c='r', linestyle='-.')
-        ax[1].set_xlim(-2.0,-0.25)
-        ax[1].set_ylim(7.0,16.0)
+        # ax[1].set_xlim(-2.0,-0.25)
+        # ax[1].set_ylim(7.0,16.0)
         ax[1].legend()
 
         fig.tight_layout()
@@ -139,6 +138,24 @@ if __name__ == '__main__':
 
         plt.show('all')
         plt.close('all')
+
+        rc = results[0]
+        err = np.std(sample[:,0])
+        rcy = np.linspace(6,10,10)
+        rcx = np.ones(rcy.shape) * rc
+
+        rcx = np.linspace(rc-err,rc+err,10)
+        rcy1 = np.ones(rcx.shape) * 10
+        rcy2 = np.ones(rcx.shape) * 7
+
+        plt.scatter(x, y, cmap="Blues_r", s=4,zorder=1000)
+        plt.fill_between(rcx,rcy1, rcy2,color='red',alpha=0.5,zorder=1001)
+        # ax.fill_between(fraclong, lolong, uplong,interpolate=True, facecolor='cyan')
+        # plt.plot(rcx,rcy,lw=2,c='r',zorder=1001)
+        # plt.axvline(rc+err,linestyle='--')
+        # plt.axvline(rc-err,linestyle='--')
+        plt.title('Clump luminosity: '+str(rc))
+        plt.show()
 
 
 
