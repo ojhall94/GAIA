@@ -25,75 +25,91 @@ import scipy.stats as stats
 import scipy.misc as misc
 
 def get_values():
-    sfile = glob.glob('../data/TRILEGAL_sim/*.all.*.txt')[0]
+    sfile = glob.glob('../data/AM_TRI/k1.7*.txt')[0]
     # sfile = glob.glob('../data/TRILEGAL/*.dat')[0]
     df = pd.read_csv(sfile, sep='\s+')
 
     '''This function corrects for extinction and sets the RC search range'''
-    m_ks = df['Ks'].values
-    mu = df['m-M0'].values
+    m_ks = df['Keplermag'].values
+    mu = df['mu0'].values
     Av = df['Av'].values
-    M = df['Mact'].values
-    labels = df['stage'].values
     Aks = 0.114*Av #Cardelli+1989
 
     M_ks = m_ks - mu - Aks
 
     #Range: y:{7,10}, x:{-3, 0}
     '''There must be a better way...'''
-    sel = np.where(M_ks < -0.5)
+    sel = np.where(M_ks < -0.25)
     M_ks = M_ks[sel]
     m_ks = m_ks[sel]
-    labels = labels[sel]
 
-    sel = np.where(M_ks > -2.5)
+    sel = np.where(M_ks > -2.)
     M_ks = M_ks[sel]
     m_ks = m_ks[sel]
-    labels = labels[sel]
-
 
     sel = np.where(m_ks < 16.)
     M_ks = M_ks[sel]
     m_ks = m_ks[sel]
-    labels = labels[sel]
 
-
-    sel = np.where(m_ks > 6.)
+    sel = np.where(m_ks > 7.)
     M_ks = M_ks[sel]
     m_ks = m_ks[sel]
-    labels = labels[sel]
 
-    return M_ks[0::], m_ks[0::], labels[0::], M[0::]
+    return M_ks[0:2000], m_ks[0:2000]
+
 
 if __name__ == '__main__':
-    vals = [-1.63,-1.59,-1.627,-1.626]
-    errs = [0.002,0.005,0.20,0.057]
-    noms = ['MixMod 2d', 'Mixmod 3d', 'RANSAC', 'Hawkins+17']
-    x = np.arange(2,10,2)
 
-    # fig, ax = plt.subplots()
-    # ax.errorbar(x,vals,yerr=errs, fmt=",k", ms=0, capsize=0, lw=1, zorder=999)
-    # ax.scatter(x,vals,s=5,c='w',zorder=1000)
-    # ax.set_xticks(x)
-    # ax.set_xticklabels(noms,fontsize=10)
-    # ax.set_ylabel('Absolute Red Clump magnitude (TRILEGAL)')
-    # fig.tight_layout()
-    # plt.show()
+    # sfile = glob.glob('../data/AM_TRI/k1.7*.txt')[0]
+    sfile = glob.glob('../data/TRILEGAL_sim/*new*.txt')[0]
+    df = pd.read_csv(sfile, sep='\s+')
 
+    m_ks = df['Ks'].values
+    mu = df['m-M0'].values
+    Av = df['Av'].values
+    logT = df['logTe'].values
+    logL = df['logL'].values
+    labels = df['stage'].values
+    M = df['Mact'].values
 
-    x, y, labels, M = get_values()
+    fig, ax = plt.subplots()
+    fig2, ax2 = plt.subplots(3,3)
+    c = ['r','b','c','g','y','k','m','darkorange','chartreuse']
+    loc = [(0,0),(0,1),(0,2),(1,0),(1,1),(1,2),(2,0),(2,1),(2,2)]
+    for i in range(int(np.nanmax(labels))+1):
+        ax.scatter(logT[labels==i],logL[labels==i],s=5,c=c[i],label=str(i))
+        im = ax2[loc[i]].scatter(logT[labels==i],logL[labels==i],s=10,c=M[labels==i],\
+                            cmap='viridis',vmin=0.0,vmax=4.)
+        ax2[loc[i]].set_title(str(i))
+        ax2[loc[i]].invert_xaxis()
+
+    ax.legend(loc='best')
+    ax.invert_xaxis()
+    ax.set_xlabel('log(T)')
+    ax.set_ylabel('log(L)')
+    fig2.tight_layout()
+
+    fig2.subplots_adjust(right=0.8)
+    cbar_ax = fig2.add_axes([0.85,0.15,0.05,0.7])
+    fig2.colorbar(im,cax=cbar_ax)
+
+    fig.tight_layout()
+    plt.show()
+
+    x, y = get_values()
     xerr = np.abs(0.01 + np.random.normal(0, 1, len(x)) * 0.005)
     yerr = np.abs(0.1 + np.random.normal(0, 1, len(y)) * 0.05)
 
-    fig, ax = plt.subplots()
-    c = ['r','b','c','g','y','k','m','darkorange','chartreuse']
+    plt.scatter(x, y, c="b", s=4,zorder=1000)
+    plt.axhline(11.0,c='r',zorder=1001)
+    plt.axhline(9.0,c='r',linestyle='--',zorder=1001)
+    plt.axhline(13.0,c='r',linestyle='--',zorder=1001)
 
-    for i in range(int(np.nanmax(labels))+1):
-        ax.scatter(x[labels==i], y[labels==i], c=c[i], s=4,zorder=1000)
-        ax.errorbar(x, y, xerr=xerr, fmt=",k", ms=0, capsize=0, lw=1, zorder=999)
-
-    ax.set_xlabel("$x$")
-    ax.set_ylabel("$y$")
+    plt.axvline(-1.6,c='r',linestyle='--',zorder=1001)
+    plt.errorbar(x, y, xerr=xerr, fmt=",k", ms=0, capsize=0, lw=1, zorder=999)
+    # plt.plot(x0, y0, color="k", lw=1.5)
+    plt.xlabel("$x$")
+    plt.ylabel("$y$")
     plt.show()
 
     '''Priors for RC data run'''
@@ -141,7 +157,7 @@ if __name__ == '__main__':
         # We're using emcee's "blobs" feature in order to keep track of the
         # foreground and background likelihoods for reasons that will become
         # clear soon.
-        return lp + ll, 0.
+        return lp + ll, (arg1, arg2)
 
     # Initialize the walkers at a reasonable location.
     ndim, nwalkers = 4, 32
@@ -157,9 +173,9 @@ if __name__ == '__main__':
     sampler.reset()
     sampler.run_mcmc(pos, 1500);
 
-    labels_mc = ["$b$", "$Q$", "$M$", "$V$"]
+    labels = ["$b$", "$Q$", "$M$", "$V$"]
     # truths = true_params + [true_frac, true_outliers[0], true_outliers[1]]
-    corner.corner(sampler.flatchain, bins=35, labels=labels_mc)#, truths=truths);
+    corner.corner(sampler.flatchain, bins=35, labels=labels)#, truths=truths);
 
     plt.show()
 
@@ -168,8 +184,7 @@ if __name__ == '__main__':
     post_prob = np.zeros(len(x))
     for i in range(sampler.chain.shape[1]):
         for j in range(sampler.chain.shape[0]):
-            ll_fg = lnlike_fg(sampler.chain[j,i])
-            ll_bg = lnlike_bg(sampler.chain[j,i])
+            ll_fg, ll_bg = sampler.blobs[i][j]
             post_prob += np.exp(ll_fg - np.logaddexp(ll_fg, ll_bg))
             norm += 1
     post_prob /= norm
@@ -189,22 +204,23 @@ if __name__ == '__main__':
     plt.fill_between(rcx,rcy1,rcy2,color='red',alpha=0.8,zorder=1001)
     plt.title('Clump luminosity: '+str(rc))
     plt.ylim([6,15])
+
+    # Plot the (true) good points.
+    # plt.scatter(x[~m_bkg], y[~m_bkg], marker="o", s=22, c=post_prob[~m_bkg], cmap="Blues_r", vmin=0, vmax=1, zorder=1000)
+
+    # Plot the true line.
+    # plt.plot(x0, y0, color="k", lw=1.5)
+
     plt.xlabel("$x$")
     plt.ylabel("$y$")
     plt.show()
 
-
-    fig, ax = plt.subplots()
-    c = ['r','b','c','g','y','k','m','darkorange','chartreuse']
-
-    for i in range(int(np.nanmax(labels))+1):
-        ax.scatter(x[labels==i], y[labels==i], c=c[i], s=4,zorder=1000)
-        ax.errorbar(x, y, xerr=xerr, fmt=",k", ms=0, capsize=0, lw=1, zorder=999)
-    ax.fill_between(rcx,rcy1,rcy2,color='red',alpha=0.8,zorder=1001)
+    plt.scatter(x, y, c=post_prob, cmap="Blues_r", s=4,zorder=1000)
+    plt.fill_between(rcx,rcy1,rcy2,color='red',alpha=0.8,zorder=1001)
     # ax.fill_between(fraclong, lolong, uplong,interpolate=True, facecolor='cyan')
     # plt.plot(rcx,rcy,lw=2,c='r',zorder=1001)
     # plt.axvline(rc+err,linestyle='--')
     # plt.axvline(rc-err,linestyle='--')
-    ax.set_title('Clump luminosity: '+str(rc))
-    ax.set_ylim([6,15])
+    plt.title('Clump luminosity: '+str(rc))
+    plt.ylim([6,15])
     plt.show()
