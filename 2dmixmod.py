@@ -33,6 +33,11 @@ def get_values():
     df['Aks'] = 0.114*df.Av #Cardelli+1989>-
     df['M_ks'] = df.Ks - df['m-M0'] - df.Aks
 
+    corr = pd.DataFrame(columns=['M_ks<','M_ks>','Ks<','Ks>','Mact<','M/H>','M/H<'])
+    corrections = [-0.5, -2.5, 15., 6., 1.4, -.5, .5]
+    corr.loc[0] = corrections
+    corr.to_csv('../Output/data_selection.csv')
+
     #Set selection criteria
     df = df[df.M_ks < -0.5]
     df = df[df.M_ks > -2.5]
@@ -91,27 +96,43 @@ def lnprob(p):
     # clear soon.
     return lp + ll
 
+def save_library(df, chain,labels_mc):
+    results = pd.DataFrame(columns=labels_mc)
+    stddevs = pd.DataFrame(columns=[l+'err' for l in labels_mc])
+
+    npa = chain.shape[1]
+    r = np.zeros(npa)
+    s = np.zeros(npa)
+    for idx in np.arange(npa):
+        r[idx] = np.median(chain[:,idx])
+        s[idx] = np.std(chain[:,idx])
+    results.loc[0], stddevs.loc[0] = r, s
+
+    output = pd.concat([results,stddevs],axis=1)
+    output.to_csv('../Output/2dmix_results.csv')
+    df.to_csv('../Output/2dmix_selected_data.csv')
+
+    return 0
+
 if __name__ == '__main__':
-    posteriors = False
 
-
+####---SETTING UP DATA
     x, y, labels, df = get_values()
     xerr = np.abs(0.05 + np.random.normal(0, 1, len(x)) * 0.005)
     yerr = np.abs(0.1 + np.random.normal(0, 1, len(y)) * 0.05)
 
+####---PLOTTING INITIAL DATA
     fig, ax = plt.subplots()
     c = ['r','b','c','g','y','k','m','darkorange','chartreuse']
-
     for i in range(int(np.nanmax(labels))+1):
         ax.scatter(x[labels==i], y[labels==i], c=c[i], s=4,zorder=1000)
         ax.errorbar(x, y, xerr=xerr, fmt=",k", ms=0, capsize=0, lw=1, zorder=999)
-
     ax.set_xlabel("$x$")
     ax.set_ylabel("$y$")
     plt.show()
 
-    '''Priors for RC data run'''
-    #m, b, Q, M, V
+####---SETTING UP AND RUNNING MCMC
+    labels_mc = ["$b$", "$Q$", "$M$", "$V$"]
     bounds = [(-1.7,-1.4), (0, 1), (10.,13.), (0.1, 4.)]
     start_params = np.array([-1.6, 0.5, 11.0, 2.0])
 
@@ -123,27 +144,24 @@ if __name__ == '__main__':
         for j in range(nwalkers):
             p0[i,j,:] = start_params * (1.0 + np.random.randn(ndims) * 0.0001)
 
-
     # Set up the sampler.
     sampler = emcee.PTSampler(ntemps, nwalkers, ndims, lnprob, lnprior,threads=2)
 
     # Run a burn-in chain and save the final location.
     print('Burning in emcee...')
-    for p1, lnpp, lnlp in tqdm(sampler.sample(p0, iterations=500)):
+    for p1, lnpp, lnlp in tqdm(sampler.sample(p0, iterations=1500)):
         pass
-    # pos, _, _, _ = sampler.run_mcmc(p0, 500)
 
     # Run the production chain.
     print('Running emcee...')
     sampler.reset()
-    for pp, lnpp, lnlp in tqdm(sampler.sample(p1, iterations=1500)):
+    for pp, lnpp, lnlp in tqdm(sampler.sample(p1, iterations=500)):
         pass
-    # sampler.run_mcmc(pos, 1500)
-
     chain = sampler.chain[0,:,:,:].reshape((-1, ndims))
 
-    labels_mc = ["$b$", "$Q$", "$M$", "$V$"]
+####---CONSOLIDATING RESULTS
     corner.corner(chain, bins=35, labels=labels_mc)
+    plt.savefig('../Output/corner.png')
     plt.show()
 
     print('Calculating posteriors...')
@@ -165,12 +183,12 @@ if __name__ == '__main__':
     lnK = np.log(fg_pp) - np.log(bg_pp)
     mask = lnK > 1
 
-    #Put together the shading on the plot
-    rc = np.median(chain[:,0])
-    err = np.std(chain[:,0])
-    rcy = np.linspace(6,15,10)
+####---PLOTTING RESULTS
+    rc = np.median(chain[:,0])  #RC luminosity
+    err = np.std(chain[:,0])    #stddev on RC luminosity
+    rcy = np.linspace(6,15,10)  #Y-axis for RC plot
 
-    rcx = np.linspace(rc-err,rc+err,10)
+    rcx = np.linspace(rc-err,rc+err,10) #Setting up shading bounds
     rcy1 = np.ones(rcx.shape) * 15
     rcy2 = np.ones(rcx.shape) * 7
 
@@ -182,23 +200,25 @@ if __name__ == '__main__':
     plt.ylim([6,15])
     plt.xlabel("$x$")
     plt.ylabel("$y$")
+    plt.savefig('../Output/posteriors.png')
     plt.show()
 
-    #Plot clarifying results
+    #Plot labeled results
     fig, ax = plt.subplots()
     c = ['r','b','c','g','y','k','m','darkorange','chartreuse']
     for i in range(int(np.nanmax(labels))+1):
-        ax.scatter(x[labels==i], y[labels==i], c=c[i], s=4,zorder=1000)
-        ax.errorbar(x, y, xerr=xerr, fmt=",k", ms=0, capsize=0, lw=1, zorder=999)
+        ax.scatter(x[~mask][labels[~mask]==i], y[~mask][labels[~mask]==i], c=c[i], s=4,zorder=1000)
+        ax.errorbar(x[~mask], y[~mask], xerr=xerr[~mask], fmt=",k", ms=0, capsize=0, lw=1, zorder=999)
     ax.fill_between(rcx,rcy1,rcy2,color='red',alpha=0.8,zorder=1001)
     ax.set_title('Clump luminosity: '+str(rc))
     ax.set_ylim([6,15])
+    plt.savefig('../Output/labeled_results.png')
     plt.show()
 
-    '''Should probably build in the .pd readout here'''
+####---SAVING STUFF INTO A PANDAS LIBRARY
+    save_library(df,chain,labels_mc)
+
 #__________________GETTING CORRECTION____________________________
-
-
     #Plot showing correction
     m_ks = df.Ks.values[mask]
     mu = df['m-M0'].values[mask]
@@ -244,4 +264,6 @@ if __name__ == '__main__':
     cbar_ax = fig.add_axes([0.85,0.15,0.05,0.7])
     norm = matplotlib.colors.Normalize(vmin=m_ks.min(),vmax=m_ks.max())
     col = matplotlib.colorbar.ColorbarBase(cbar_ax,cmap='viridis',norm=norm,orientation='vertical',label='TRILEGAL apaprent magnitude')
+
+    plt.savefig('../Output/corrections.png')
     plt.show()
