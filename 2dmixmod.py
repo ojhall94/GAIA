@@ -62,13 +62,14 @@ def lnprior(p):
 
 # The "foreground" linear likelihood:
 def lnlike_fg(p):
-    b, _, M, V = p
-    model = np.zeros(y.shape) + b
-    return -0.5 * ((model - x) / xerr)**2 - np.log(xerr)
+    b, sigrc, _, M, sigo = p
+    sig = np.sqrt(sigrc**2 + xerr**2)
+
+    return -0.5 * ((x - b) / sig)**2 - np.log(sig)
 
 # The "background" outlier likelihood:
 def lnlike_bg(p):
-    _, Q, M, V = p
+    _, _, Q, M, sigo = p
     return -0.5 * ((M - y)/ V)**2 - np.log(V)
 
 # Full probabilistic model.
@@ -132,9 +133,9 @@ if __name__ == '__main__':
     plt.show()
 
 ####---SETTING UP AND RUNNING MCMC
-    labels_mc = ["$b$", "$Q$", "$M$", "$V$"]
-    bounds = [(-1.7,-1.4), (0, 1), (10.,13.), (0.1, 4.)]
-    start_params = np.array([-1.6, 0.5, 11.0, 2.0])
+    labels_mc = ["$b$", r"$\sigma(RC)$", "$Q$", "$o$", "r$\sigma(o)$"]
+    bounds = [(-1.7,-1.4), (0.01,0.4), (0, 1), (-2.5,-0.5), (0.1, 2.)]
+    start_params = np.array([-1.6, 0.2, 0.5, -2.0, 1.0])
 
     # Initialize the walkers at a reasonable location.
     ntemps, ndims, nwalkers = 2, len(bounds), 32

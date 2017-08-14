@@ -123,22 +123,33 @@ if __name__ == '__main__':
     fig.tight_layout()
     plt.show()
 
-    sys.exit()
     x, y = get_values()
     xerr = np.abs(0.01 + np.random.normal(0, 1, len(x)) * 0.005)
     yerr = np.abs(0.1 + np.random.normal(0, 1, len(y)) * 0.05)
 
-    plt.scatter(x, y, c="b", s=4,zorder=1000)
-    plt.axhline(11.0,c='r',zorder=1001)
-    plt.axhline(9.0,c='r',linestyle='--',zorder=1001)
-    plt.axhline(13.0,c='r',linestyle='--',zorder=1001)
 
-    plt.axvline(-1.6,c='r',linestyle='--',zorder=1001)
-    plt.errorbar(x, y, xerr=xerr, fmt=",k", ms=0, capsize=0, lw=1, zorder=999)
-    # plt.plot(x0, y0, color="k", lw=1.5)
-    plt.xlabel("$x$")
-    plt.ylabel("$y$")
+    start_params = np.array([-1.6, 0.2, 0.5, -2.0, 1.0])
+    b = -1.6
+    sigrc = 0.05
+    o = 1.0
+    sigo = 1.0
+
+    sig1 = np.sqrt(sigrc**2 + xerr**2)
+    sig2 = np.sqrt(sigo**2 + xerr**2)
+
+    '''Trying out new likelihoods'''
+    lrc = -0.5 * (x - b)**2 / sig1**2 - np.log(sig1)
+
+    xn = np.abs(x)
+    bn = np.abs(b)
+    lbg = -np.log(xn) - np.log(sig2) - 0.5 * (np.log(xn) - bn)**2/sig2**2
+
+    # plt.scatter(x,np.exp(lrc), c='r')
+    plt.scatter(x,lbg, c='c')
     plt.show()
+
+
+    sys.exit()
 
     '''Priors for RC data run'''
     #m, b, Q, M, V
