@@ -51,8 +51,9 @@ def get_values():
     df = df[df['[M/H]'] < .5]
 
     # df = df[df.stage == 4]
+    df = df[0:10000]
 
-    return df.M_ks, df.Ks, df.stage, df
+    return df.M_ks.values, df.Ks.values, df.stage, df
 
 def lnprior(p):
     # We'll just put reasonable uniform priors on all the parameters.
@@ -62,19 +63,23 @@ def lnprior(p):
 
 # The "foreground" linear likelihood:
 def lnlike_fg(p):
-    b, sigrc, _, M, sigo = p
+    b, sigrc, _, o, sigo = p
     sig = np.sqrt(sigrc**2 + xerr**2)
 
     return -0.5 * ((x - b) / sig)**2 - np.log(sig)
 
 # The "background" outlier likelihood:
 def lnlike_bg(p):
-    _, _, Q, M, sigo = p
-    return -0.5 * ((M - y)/ V)**2 - np.log(V)
+    _, _, Q, o, sigo = p
+    sig = np.sqrt(sigo**2 + xerr**2)
+    xn = np.abs(x)
+    on = np.abs(o)
+
+    return -np.log(xn) -np.log(sig) - 0.5 * (np.log(xn) - on)**2/sig**2
 
 # Full probabilistic model.
 def lnprob(p):
-    b, Q, M, V = p
+    b, sigrc, Q, o, sigo = p
 
     # First check the prior.
     lp = lnprior(p)
@@ -113,7 +118,7 @@ def save_library(df, chain,labels_mc):
     output.to_csv('../Output/2dmix_results.csv')
     df.to_csv('../Output/2dmix_selected_data.csv')
 
-    return 0
+    return results, stddevs
 
 if __name__ == '__main__':
 
@@ -133,9 +138,9 @@ if __name__ == '__main__':
     plt.show()
 
 ####---SETTING UP AND RUNNING MCMC
-    labels_mc = ["$b$", r"$\sigma(RC)$", "$Q$", "$o$", "r$\sigma(o)$"]
-    bounds = [(-1.7,-1.4), (0.01,0.4), (0, 1), (-2.5,-0.5), (0.1, 2.)]
-    start_params = np.array([-1.6, 0.2, 0.5, -2.0, 1.0])
+    labels_mc = ["$b$", r"$\sigma(RC)$", "$Q$", "$o$", r"$\sigma(o)$"]
+    bounds = [(-1.7,-1.4), (0.01,0.2), (0, 1), (0.0,2.0), (0.1, 2.)]
+    start_params = np.array([-1.6, 0.1, 0.5, 0.1, 1.0])
 
     # Initialize the walkers at a reasonable location.
     ntemps, ndims, nwalkers = 2, len(bounds), 32
@@ -217,7 +222,7 @@ if __name__ == '__main__':
     plt.show()
 
 ####---SAVING STUFF INTO A PANDAS LIBRARY
-    save_library(df,chain,labels_mc)
+    results, stddevs = save_library(df,chain,labels_mc)
 
 #__________________GETTING CORRECTION____________________________
     #Plot showing correction
