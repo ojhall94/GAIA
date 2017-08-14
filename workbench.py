@@ -59,18 +59,45 @@ def get_values():
 
 
 if __name__ == '__main__':
+    # vals = [-1.63,-1.59,-1.627,-1.626]
+    # errs = [0.002,0.005,0.20,0.057]
+    # noms = ['MixMod 2d', 'Mixmod 3d', 'RANSAC', 'Hawkins+17']
+    # x = np.arange(2,10,2)
+    # # fig, ax = plt.subplots()
+    # # ax.errorbar(x,vals,yerr=errs, fmt=",k", ms=0, capsize=0, lw=1, zorder=999)
+    # # ax.scatter(x,vals,s=5,c='w',zorder=1000)
+    # # ax.set_xticks(x)
+    # # ax.set_xticklabels(noms,fontsize=10)
+    # # ax.set_ylabel('Absolute Red Clump magnitude (TRILEGAL)')
+    # # fig.tight_layout()
+    # # plt.show()
+
 
     # sfile = glob.glob('../data/AM_TRI/k1.7*.txt')[0]
-    sfile = glob.glob('../data/TRILEGAL_sim/*new*.txt')[0]
+    # sfile = glob.glob('../data/AM_TRI/k1.7*.txt')[0]
+    sfile = glob.glob('../data/TRILEGAL_sim/*all*.txt')[0]
     df = pd.read_csv(sfile, sep='\s+')
 
+    '''This function corrects for extinction and sets the RC search range'''
     m_ks = df['Ks'].values
     mu = df['m-M0'].values
     Av = df['Av'].values
+    M = df['Mact'].values
+    labels = df['stage'].values
+    Zish = df['[M/H]'].values
     logT = df['logTe'].values
     logL = df['logL'].values
-    labels = df['stage'].values
-    M = df['Mact'].values
+
+    '''This function corrects for extinction and sets the RC search range'''
+    # m_ks = df['Ksmag'].values
+    # mu = df['mu0'].values
+    # Av = df['Av'].values
+    # M = df['Mass'].values
+    # labels = df['label'].values
+    # logT = df['logTe'].values
+    # logL = df['logL'].values
+    # Zish = df['M_H'].values
+
 
     fig, ax = plt.subplots()
     fig2, ax2 = plt.subplots(3,3)
@@ -78,8 +105,8 @@ if __name__ == '__main__':
     loc = [(0,0),(0,1),(0,2),(1,0),(1,1),(1,2),(2,0),(2,1),(2,2)]
     for i in range(int(np.nanmax(labels))+1):
         ax.scatter(logT[labels==i],logL[labels==i],s=5,c=c[i],label=str(i))
-        im = ax2[loc[i]].scatter(logT[labels==i],logL[labels==i],s=10,c=M[labels==i],\
-                            cmap='viridis',vmin=0.0,vmax=4.)
+        im = ax2[loc[i]].scatter(logT[labels==i],logL[labels==i],s=10,c=Zish[labels==i],\
+                            cmap='viridis',vmin=-4,vmax=0.7)#vmin=0.0,vmax=4.)
         ax2[loc[i]].set_title(str(i))
         ax2[loc[i]].invert_xaxis()
 
@@ -96,6 +123,7 @@ if __name__ == '__main__':
     fig.tight_layout()
     plt.show()
 
+    sys.exit()
     x, y = get_values()
     xerr = np.abs(0.01 + np.random.normal(0, 1, len(x)) * 0.005)
     yerr = np.abs(0.1 + np.random.normal(0, 1, len(y)) * 0.05)
@@ -116,7 +144,6 @@ if __name__ == '__main__':
     #m, b, Q, M, V
     bounds = [(-1.8,-1.4), (0, 1), (10.,13.), (0.1, 4.)]
     p0 = np.array([-1.6, 0.5, 11.0, 2.0])
-
     def lnprior(p):
         # We'll just put reasonable uniform priors on all the parameters.
         if not all(b[0] < v < b[1] for v, b in zip(p, bounds)):
