@@ -33,22 +33,22 @@ def get_values():
     df['Aks'] = 0.114*df.Av #Cardelli+1989>-
     df['M_ks'] = df.Ks - df['m-M0'] - df.Aks
 
-    corr = pd.DataFrame(columns=['M_ks<','M_ks>','Ks<','Ks>','Mact<','M/H>','M/H<'])
-    corrections = [-0.5, -2.5, 15., 6., 1.4, -.5, .5]
-    corr.loc[0] = corrections
-    corr.to_csv('../Output/data_selection.csv')
+    corrections = pd.DataFrame(columns=['M_ks<','M_ks>','Ks<','Ks>','Mact<','M/H>','M/H<'])
+    corr = [-0.5, -2.5, 15., 6., 1.4, -.5, .5]
+    corrections.loc[0] = corr
+    corrections.to_csv('../Output/data_selection.csv')
 
     #Set selection criteria
-    df = df[df.M_ks < -0.5]
-    df = df[df.M_ks > -2.5]
+    df = df[df.M_ks < corr[0]]
+    df = df[df.M_ks > corr[1]]
 
-    df = df[df.Ks < 16.]
-    df = df[df.Ks > 6.]
+    df = df[df.Ks < corr[2]]
+    df = df[df.Ks > corr[3]]
 
-    df = df[df.Mact < 1.4]
+    df = df[df.Mact < corr[4]]
 
-    df = df[df['[M/H]'] > -.5]
-    df = df[df['[M/H]'] < .5]
+    df = df[df['[M/H]'] > corr[5]]
+    df = df[df['[M/H]'] < corr[6]]
 
     # df = df[df.stage == 4]
     df = df[0:10000]
@@ -72,7 +72,9 @@ def lnlike_fg(p):
 def lnlike_bg(p):
     _, _, Q, o, sigo = p
     sig = np.sqrt(sigo**2 + xerr**2)
-    xn = np.abs(x)
+    val = np.abs(x).max() + np.abs(x).min()
+
+    xn = x + val
     on = np.abs(o)
 
     return -np.log(xn) -np.log(sig) - 0.5 * (np.log(xn) - on)**2/sig**2
@@ -135,6 +137,7 @@ if __name__ == '__main__':
         ax.errorbar(x, y, xerr=xerr, fmt=",k", ms=0, capsize=0, lw=1, zorder=999)
     ax.set_xlabel("$x$")
     ax.set_ylabel("$y$")
+    plt.savefig('../Output/dataset.png')
     plt.show()
 
 ####---SETTING UP AND RUNNING MCMC
@@ -155,7 +158,7 @@ if __name__ == '__main__':
 
     # Run a burn-in chain and save the final location.
     print('Burning in emcee...')
-    for p1, lnpp, lnlp in tqdm(sampler.sample(p0, iterations=1500)):
+    for p1, lnpp, lnlp in tqdm(sampler.sample(p0, iterations=1000)):
         pass
 
     # Run the production chain.
@@ -176,7 +179,7 @@ if __name__ == '__main__':
     bg_pp = np.zeros(len(x))
     lotemp = sampler.chain[0,:,:,:]
 
-    for i in range(lotemp.shape[0]):
+    for i in tqdm(range(lotemp.shape[0])):
         for j in range(lotemp.shape[1]):
             ll_fg = lnlike_fg(lotemp[i,j])
             ll_bg = lnlike_bg(lotemp[i,j])
@@ -190,6 +193,7 @@ if __name__ == '__main__':
     mask = lnK > 1
 
 ####---PLOTTING RESULTS
+    print('Plotting results...')
     rc = np.median(chain[:,0])  #RC luminosity
     err = np.std(chain[:,0])    #stddev on RC luminosity
     rcy = np.linspace(6,15,10)  #Y-axis for RC plot
@@ -221,38 +225,48 @@ if __name__ == '__main__':
     plt.savefig('../Output/labeled_results.png')
     plt.show()
 
+
+
 ####---SAVING STUFF INTO A PANDAS LIBRARY
+    print('Saving output...')
     results, stddevs = save_library(df,chain,labels_mc)
 
+    plt.scatter(x,np.exp(lnlike_fg(results.loc[0].values)))
+    plt.savefig('../Output/fg_like.png')
+    plt.close()
+    plt.scatter(x, np.exp(lnlike_bg(results.loc[0].values)))
+    plt.savefig('../Output/bg_like.png')
+    plt.close()
 #__________________GETTING CORRECTION____________________________
+    print('Calculating corrections...')
     #Plot showing correction
     m_ks = df.Ks.values[mask]
     mu = df['m-M0'].values[mask]
     Aks = df.Aks.values[mask]
 
-    #Calculating Trilegal parallax
+    #Calculating Trilegal parallax from its distance modulus
     d_o = 10**(1+mu/5)
     p_o = 1000/d_o
 
-    #Calculating RC parallax
-    Mrc = np.ones(y[mask].shape)*rc
-    Mrcerr = np.ones(y[mask].shape)*err
-    mu_rc = m_ks - Mrc - Aks
-    sig_mu = np.sqrt(yerr[mask]**2 + xerr[mask]**2)
+    #Calculating RC parallax from our fit value for magnitude
+    Mrc = np.ones(y[mask].shape)*rc                 #Fit RC luminosity
+    Mrcerr = np.ones(y[mask].shape)*err             #Fit RC error
+    mu_rc = m_ks - Mrc - Aks                        #Calculating distance modulus
+    sig_mu = np.sqrt(yerr[mask]**2 + xerr[mask]**2) #????
 
-    d_rc = 10**(1+mu_rc/5)
-    p_rc = 1000/d_rc
-    sig_p = np.sqrt( (10**(1+mu_rc/5)*np.log(10)/5)**2 * sig_mu**2)
+    d_rc = 10**(1+mu_rc/5)      #Calculating distance
+    p_rc = 1000/d_rc            #Calculating parallax
+    sig_p = np.sqrt( (10**(1+mu_rc/5)*np.log(10)/5)**2 * sig_mu**2) #Parallax error?
 
-    oto = np.copy(p_rc)
-
+    #Fit a straight line to the data
     fit = np.polyfit(p_rc, p_o, 1)
     fn = np.poly1d(fit)
 
+    #Plotting results
     fig, ax = plt.subplots(2)
     # plt.errorbar(p_rc,p_o, xerr=sig_p, fmt=",k", ms=0, capsize=0, lw=1, zorder=999)
     im = ax[0].scatter(p_rc,p_o, marker="s", s=22, c=m_ks, cmap="viridis", zorder=1000)
-    ax[0].plot(p_rc,oto,linestyle='--',c='r',alpha=.5, zorder=1001, label='One to One')
+    ax[0].plot(p_rc,p_rc,linestyle='--',c='r',alpha=.5, zorder=1001, label='One to One')
     ax[0].plot(p_rc, fn(p_rc),c='k',alpha=.9, zorder=1002, label='Straight line polyfit')
     ax[0].set_xlabel('RC parallax')
     ax[0].set_ylabel('TRILEGAL parallax')
