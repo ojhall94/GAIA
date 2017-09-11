@@ -53,7 +53,33 @@ def get_values():
     # df = df[df.stage == 4]
     df = df[0:10000]
 
+    df = get_errors(df)
+
     return df.M_ks.values, df.Ks.values, df.stage, df
+
+def get_errors(df):
+    DR = 2  #Choosing the data release
+    if DR == 1:
+        df['pi_err'] = np.abs(0.3 + np.random.normal(0,0.5,len(df)) * 0.3) #mas
+
+    if DR == 2:
+        df['pi_err'] = np.abs(10.e-3 + np.random.normal(0,0.5,len(df)) * 2.e-3) #mas
+
+    df['d'] = 10**(1+ (df['m-M0']/5))       #Getting all distances (pc)
+    df['pi'] = 1000/df['d']                 #Getting all parallax (mas)
+    df['sig_d'] = (1000*df['pi_err']/df['pi']**2)  #Propagating the Gaia error
+
+    df['sig_mu'] = np.sqrt( (5*np.log10(np.e)/df['d'])**2 * df['sig_d']**2 )
+    df['sig_M'] = df['sig_mu']  #Until we incorporate errors on Aks and Ks
+
+    plt.errorbar(df['pi'],df['Ks'],xerr=df['pi_err'],alpha=.1,fmt=".k",c='grey',zorder=999)
+    plt.scatter(df['pi'],df['Ks'],s=5,zorder=1000)
+    plt.show()
+
+    plt.errorbar(df['d'],df['Ks'],xerr=df['sig_d'],alpha=.1,fmt=".k",c='grey',zorder=999)
+    plt.scatter(df['d'],df['Ks'],s=5,zorder=1000)
+    plt.show()
+    return df
 
 def lnprior(p):
     # We'll just put reasonable uniform priors on all the parameters.
@@ -124,10 +150,13 @@ def save_library(df, chain,labels_mc):
 
 if __name__ == '__main__':
 
+
 ####---SETTING UP DATA
     x, y, labels, df = get_values()
-    xerr = np.abs(0.05 + np.random.normal(0, 1, len(x)) * 0.005)
-    yerr = np.abs(0.1 + np.random.normal(0, 1, len(y)) * 0.05)
+    xerr = df['sig_M']
+    # xerr = np.abs(0.05 + np.random.normal(0, 1, len(x)) * 0.005)
+
+    # yerr = np.abs(0.1 + np.random.normal(0, 1, len(y)) * 0.05)
 
 ####---PLOTTING INITIAL DATA
     fig, ax = plt.subplots()
@@ -241,39 +270,38 @@ if __name__ == '__main__':
     print('Calculating corrections...')
     #Plot showing correction
     m_ks = df.Ks.values[mask]
-    mu = df['m-M0'].values[mask]
     Aks = df.Aks.values[mask]
-
-    #Calculating Trilegal parallax from its distance modulus
-    d_o = 10**(1+mu/5)
-    p_o = 1000/d_o
+    pi_o = df['pi'].values[mask]
+    pi_o_err = df['pi_err'].values[mask]
 
     #Calculating RC parallax from our fit value for magnitude
     Mrc = np.ones(y[mask].shape)*rc                 #Fit RC luminosity
     Mrcerr = np.ones(y[mask].shape)*err             #Fit RC error
     mu_rc = m_ks - Mrc - Aks                        #Calculating distance modulus
-    sig_mu = np.sqrt(yerr[mask]**2 + xerr[mask]**2) #????
 
     d_rc = 10**(1+mu_rc/5)      #Calculating distance
-    p_rc = 1000/d_rc            #Calculating parallax
-    sig_p = np.sqrt( (10**(1+mu_rc/5)*np.log(10)/5)**2 * sig_mu**2) #Parallax error?
+    pi_rc = 1000/d_rc            #Calculating parallax
+
+    d_err = np.sqrt( (2*np.log(10)*10**(mu_rc/5))**2 * Mrcerr**2 )
+    pi_rc_err = 1000 * d_err / d_rc**2
 
     #Fit a straight line to the data
-    fit = np.polyfit(p_rc, p_o, 1)
+    fit = np.polyfit(pi_rc, pi_o, 1)
     fn = np.poly1d(fit)
 
     #Plotting results
     fig, ax = plt.subplots(2)
-    # plt.errorbar(p_rc,p_o, xerr=sig_p, fmt=",k", ms=0, capsize=0, lw=1, zorder=999)
-    im = ax[0].scatter(p_rc,p_o, marker="s", s=22, c=m_ks, cmap="viridis", zorder=1000)
-    ax[0].plot(p_rc,p_rc,linestyle='--',c='r',alpha=.5, zorder=1001, label='One to One')
-    ax[0].plot(p_rc, fn(p_rc),c='k',alpha=.9, zorder=1002, label='Straight line polyfit')
+    ax[0].errorbar(pi_rc,pi_o, xerr=pi_rc_err, yerr=pi_o_err,fmt=",k",alpha=.1, ms=0, capsize=0, lw=1, zorder=999)
+    im = ax[0].scatter(pi_rc,pi_o, marker="s", s=10, c=m_ks, cmap="viridis", zorder=1000)
+    ax[0].plot(pi_rc,pi_rc,linestyle='--',c='r',alpha=.5, zorder=1001, label='One to One')
+    ax[0].plot(pi_rc, fn(pi_rc),c='k',alpha=.9, zorder=1002, label='Straight line polyfit')
     ax[0].set_xlabel('RC parallax')
     ax[0].set_ylabel('TRILEGAL parallax')
     ax[0].set_title(r'RC mixture model fit compared to TRILEGAL parallax (M $<$ 1.4Msol, -.5 $<$ [M/H] $<$ .5)')
     ax[0].legend(loc='best')
 
-    ax[1].scatter(p_rc,p_o - p_rc, c=m_ks,cmap='viridis')
+    ax[1].errorbar(pi_rc,pi_o-pi_rc, xerr=pi_rc_err,yerr=np.sqrt(pi_o_err**2 + pi_rc_err**2), fmt=",k",alpha=.2, ms=0, capsize=0, lw=1, zorder=999)
+    ax[1].scatter(pi_rc,pi_o - pi_rc, s=10,c=m_ks,cmap='viridis',zorder=1000)
     ax[1].set_xlabel('RC parallax')
     ax[1].set_ylabel('TRILEGAL parallax - RC parallax')
     ax[1].set_title(r'Residuals to one-to-one for upper plot')
