@@ -149,7 +149,7 @@ def save_library(df, chain,labels_mc):
     return results, stddevs
 
 if __name__ == '__main__':
-
+    test_for_alex = True
 
 ####---SETTING UP DATA
     x, y, labels, df = get_values()
