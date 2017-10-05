@@ -9,7 +9,7 @@ import glob
 import sys
 import corner as corner
 from tqdm import tqdm
-import seaborn as sns
+# import seaborn as sns
 import emcee
 
 import matplotlib
@@ -18,7 +18,7 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 matplotlib.rcParams['xtick.direction'] = 'out'
 matplotlib.rcParams['ytick.direction'] = 'out'
-
+\
 from statsmodels.robust.scale import mad as mad_calc
 from sklearn import linear_model
 import scipy.stats as stats
@@ -34,7 +34,7 @@ def get_values():
     df['M_ks'] = df.Ks - df['m-M0'] - df.Aks
 
     corrections = pd.DataFrame(columns=['M_ks<','M_ks>','Ks<','Ks>','Mact<','M/H>','M/H<'])
-    corr = [-0.5, -2.5, 15., 6., 1.4, -.5, .5]
+    corr = [-0.5, -2.5, 15., 6., 1.5, -.5, .5]
     corrections.loc[0] = corr
     corrections.to_csv('../Output/data_selection.csv')
 
@@ -50,8 +50,11 @@ def get_values():
     df = df[df['[M/H]'] > corr[5]]
     df = df[df['[M/H]'] < corr[6]]
 
+    # df = df[df['Ks'] < 10.5]
+    # df = df[df['Ks'] > 7.0]
+
     # df = df[df.stage == 4]
-    df = df[0:10000]
+    # df = df[0:5000]
 
     df = get_errors(df)
 
@@ -148,26 +151,74 @@ def save_library(df, chain,labels_mc):
 
     return results, stddevs
 
-if __name__ == '__main__':
-    test_for_alex = True
+def tortoise(dfm):
+    sfile = glob.glob('../data/TRILEGAL_sim/*all*.txt')[0]
+    df = pd.read_csv(sfile, sep='\s+')
+    labels = df['stage'].values
+    Zish = df['[M/H]'].values
+    logT = df['logTe'].values
+    logL = df['logL'].values
 
+    fig, ax = plt.subplots()
+    fig2, ax2 = plt.subplots(3,3)
+    c = ['r','b','c','g','y','k','m','darkorange','chartreuse']
+    loc = [(0,0),(0,1),(0,2),(1,0),(1,1),(1,2),(2,0),(2,1),(2,2)]
+
+    for i in range(int(np.nanmax(labels))+1):
+        ax.scatter(logT[labels==i],logL[labels==i],s=5,c=c[i],label=str(i))
+        im = ax2[loc[i]].scatter(logT[labels==i],logL[labels==i],s=10,c=Zish[labels==i],\
+                            cmap='viridis',vmin=-4,vmax=0.7)#vmin=0.0,vmax=4.)
+        ax2[loc[i]].scatter(dfm.logTe[dfm.stage==i],dfm.logL[dfm.stage==i],s=7,c='r',marker=',')
+        ax2[loc[i]].set_title(str(i))
+        ax2[loc[i]].invert_xaxis()
+
+    ax.scatter(dfm['logTe'],dfm['logL'],s=5,c='r',marker=',',label='Mask')
+    ax.legend(loc='best')
+    ax.invert_xaxis()
+    ax.set_xlabel('log(T)')
+    ax.set_ylabel('log(L)')
+    fig2.tight_layout()
+
+    fig2.subplots_adjust(right=0.8)
+    cbar_ax = fig2.add_axes([0.85,0.15,0.05,0.7])
+    fig2.colorbar(im,cax=cbar_ax,label='[M/H]')
+
+    fig.tight_layout()
+    fig.savefig('../Output/HR_mask.png')
+    fig2.savefig('../Output/HRsplit_mask.png')
+    plt.show()
+    return len(df[labels==4])
+
+if __name__ == '__main__':
 ####---SETTING UP DATA
     x, y, labels, df = get_values()
     xerr = df['sig_M']
     # xerr = np.abs(0.05 + np.random.normal(0, 1, len(x)) * 0.005)
-
     # yerr = np.abs(0.1 + np.random.normal(0, 1, len(y)) * 0.05)
 
 ####---PLOTTING INITIAL DATA
     fig, ax = plt.subplots()
     c = ['r','b','c','g','y','k','m','darkorange','chartreuse']
-    for i in range(int(np.nanmax(labels))+1):
-        ax.scatter(x[labels==i], y[labels==i], c=c[i], s=4,zorder=1000)
-        ax.errorbar(x, y, xerr=xerr, fmt=",k", ms=0, capsize=0, lw=1, zorder=999)
-    ax.set_xlabel("$x$")
-    ax.set_ylabel("$y$")
-    plt.savefig('../Output/dataset.png')
+    label = ['Pre-Main Sequence', 'Main Sequence', 'Subgiant Branch', 'Red Giant Branch', 'Core Helium Burning',\
+                'RR Lyrae variables', 'Cepheid Variables', 'Asymptotic Giant Branch','Supergiants']
+    # for i in range(int(np.nanmax(labels))+1):
+    #     ax.scatter(x[labels==i], y[labels==i], c=c[i], s=1,zorder=1000,label=label[i])
+    ax.scatter(x[labels==3], y[labels==3], c=c[3], s=1,zorder=1000,label=label[3])
+    ax.scatter(x[labels==4], y[labels==4], c=c[4], s=1,zorder=1000,label=label[4])
+
+
+    ax.errorbar(x, y, xerr=xerr, fmt=",k", ms=0, capsize=0, lw=1, zorder=999)
+    ax.set_xlabel(r"$M_{Ks}$")
+    ax.set_ylabel(r"$m_{Ks}$")
+    ax.set_title(r"Labeled TRILEGAL simulated data for (M $<$ 1.4Msol, -.5 $<$ [M/H] $<$ .5)")
+    ax.legend(loc='best',fancybox=True)
+    ax.grid()
+    ax.set_axisbelow(True)
+
+    plt.savefig('/home/oliver/Dropbox/Papers/Midterm/Images/C4_TRILEGALfull.png')
+    # plt.savefig('../Output/dataset.png')
     plt.show()
+    plt.close('all')
 
 ####---SETTING UP AND RUNNING MCMC
     labels_mc = ["$b$", r"$\sigma(RC)$", "$Q$", "$o$", r"$\sigma(o)$"]
@@ -228,31 +279,45 @@ if __name__ == '__main__':
     rcy = np.linspace(6,15,10)  #Y-axis for RC plot
 
     rcx = np.linspace(rc-err,rc+err,10) #Setting up shading bounds
-    rcy1 = np.ones(rcx.shape) * 15
-    rcy2 = np.ones(rcx.shape) * 7
+    rcy1 = np.ones(rcx.shape) * y.max()
+    rcy2 = np.ones(rcx.shape) * 6
 
     # Plot mixture model results
-    plt.errorbar(x, y, xerr=xerr, fmt=",k", ms=0, capsize=0, lw=1, zorder=999)
-    plt.scatter(x, y, marker="s", s=22, c=fg_pp, cmap="Blues_r", vmin=0, vmax=1, zorder=1000)
-    plt.fill_between(rcx,rcy1,rcy2,color='red',alpha=0.8,zorder=1001)
-    plt.title('Clump luminosity: '+str(rc))
-    plt.ylim([6,15])
-    plt.xlabel("$x$")
-    plt.ylabel("$y$")
-    plt.savefig('../Output/posteriors.png')
+    fig, ax = plt.subplots()
+    ax.errorbar(x, y, xerr=xerr, fmt=",k", ms=0, capsize=0, lw=1, zorder=999)
+    s = ax.scatter(x, y, marker="1", s=1, c=fg_pp, cmap="Blues_r", vmin=0, vmax=1, zorder=1000)
+    ax.fill_between(rcx,rcy1,rcy2,color='red',alpha=0.8,zorder=1001,label='RC Confidence Interval')
+    ax.set_title(r"Inlier Posterior Probabilities for TRILEGAL simulated data")
+    ax.set_xlabel(r"$M_{Ks}$")
+    ax.set_ylabel(r"$m_{Ks}$")
+    fig.colorbar(s,label='Inlier Posterior Probability')
+    ax.legend(loc='best',fancybox='True')
+
+    ax.grid()
+    ax.set_axisbelow(True)
+    plt.savefig('/home/oliver/Dropbox/Papers/Midterm/Images/C4_posteriors.png')
+    # plt.savefig('../Output/posteriors.png')
     plt.show()
+    plt.close('all')
 
     #Plot labeled results
     fig, ax = plt.subplots()
-    c = ['r','b','c','g','y','k','m','darkorange','chartreuse']
-    for i in range(int(np.nanmax(labels))+1):
-        ax.scatter(x[~mask][labels[~mask]==i], y[~mask][labels[~mask]==i], c=c[i], s=4,zorder=1000)
-        ax.errorbar(x[~mask], y[~mask], xerr=xerr[~mask], fmt=",k", ms=0, capsize=0, lw=1, zorder=999)
-    ax.fill_between(rcx,rcy1,rcy2,color='red',alpha=0.8,zorder=1001)
-    ax.set_title('Clump luminosity: '+str(rc))
-    ax.set_ylim([6,15])
-    plt.savefig('../Output/labeled_results.png')
+    ax.scatter(x[~mask][labels[~mask]==3], y[~mask][labels[~mask]==3], c=c[3], s=1,zorder=1000,label=label[3])
+    ax.scatter(x[~mask][labels[~mask]==4], y[~mask][labels[~mask]==4], c=c[4], s=1,zorder=1000,label=label[4])
+    ax.errorbar(x[~mask], y[~mask], xerr=xerr[~mask], fmt=",k", ms=0, capsize=0, lw=1, zorder=999)
+    ax.fill_between(rcx,rcy1,rcy2,color='red',alpha=0.8,zorder=1001,label='RC Confidence Interval')
+
+    ax.set_xlabel(r"$M_{Ks}$")
+    ax.set_ylabel(r"$m_{Ks}$")
+    ax.set_title(r"TRILEGAL simulated data with classified RC stars removed")
+    ax.legend(loc='best',fancybox=True)
+    ax.grid()
+    ax.set_axisbelow(True)
+
+    plt.savefig('/home/oliver/Dropbox/Papers/Midterm/Images/C4_result.png')
+    # plt.savefig('../Output/dataset.png')
     plt.show()
+    plt.close('all')
 
 
 
@@ -266,6 +331,7 @@ if __name__ == '__main__':
     plt.scatter(x, np.exp(lnlike_bg(results.loc[0].values)))
     plt.savefig('../Output/bg_like.png')
     plt.close()
+
 #__________________GETTING CORRECTION____________________________
     print('Calculating corrections...')
     #Plot showing correction
@@ -292,20 +358,22 @@ if __name__ == '__main__':
     #Plotting results
     fig, ax = plt.subplots(2)
     ax[0].errorbar(pi_rc,pi_o, xerr=pi_rc_err, yerr=pi_o_err,fmt=",k",alpha=.1, ms=0, capsize=0, lw=1, zorder=999)
-    im = ax[0].scatter(pi_rc,pi_o, marker="s", s=10, c=m_ks, cmap="viridis", zorder=1000)
+    im = ax[0].scatter(pi_rc,pi_o, marker="s", s=5, c=m_ks, cmap="viridis", zorder=1000)
     ax[0].plot(pi_rc,pi_rc,linestyle='--',c='r',alpha=.5, zorder=1001, label='One to One')
     ax[0].plot(pi_rc, fn(pi_rc),c='k',alpha=.9, zorder=1002, label='Straight line polyfit')
-    ax[0].set_xlabel('RC parallax')
-    ax[0].set_ylabel('TRILEGAL parallax')
-    ax[0].set_title(r'RC mixture model fit compared to TRILEGAL parallax (M $<$ 1.4Msol, -.5 $<$ [M/H] $<$ .5)')
+    ax[0].set_xlabel('RC parallax (mas)')
+    ax[0].set_ylabel('TRILEGAL parallax (mas)')
+    ax[0].set_title(r'Determined RC parallax compared to TRILEGAL parallax for classified RC stars')
     ax[0].legend(loc='best')
 
-    ax[1].errorbar(pi_rc,pi_o-pi_rc, xerr=pi_rc_err,yerr=np.sqrt(pi_o_err**2 + pi_rc_err**2), fmt=",k",alpha=.2, ms=0, capsize=0, lw=1, zorder=999)
-    ax[1].scatter(pi_rc,pi_o - pi_rc, s=10,c=m_ks,cmap='viridis',zorder=1000)
-    ax[1].set_xlabel('RC parallax')
-    ax[1].set_ylabel('TRILEGAL parallax - RC parallax')
+    yrr = np.sqrt( (pi_o_err / pi_rc)**2 + ( (pi_o/pi_rc**2)**2 * pi_rc_err**2))
+    # yrr = np.sqrt(pi_rc_err**2 + pi_o_err**2)
+    ax[1].errorbar(pi_rc,pi_o/pi_rc, xerr=pi_rc_err,yerr=yrr, fmt=",k",alpha=.2, ms=0, capsize=0, lw=1, zorder=999)
+    ax[1].scatter(pi_rc,pi_o/pi_rc, s=1,c=m_ks,cmap='viridis',zorder=1000)
+    ax[1].set_xlabel('RC parallax (mas)')
+    ax[1].set_ylabel('TRILEGAL parallax/RC parallax')
     ax[1].set_title(r'Residuals to one-to-one for upper plot')
-    ax[1].axhline(y=0.0,c='r',alpha=.5,linestyle='--')
+    ax[1].axhline(y=1.0,c='r',alpha=.5,linestyle='--')
     fig.tight_layout()
 
     fig.subplots_adjust(right=0.8)
@@ -313,5 +381,25 @@ if __name__ == '__main__':
     norm = matplotlib.colors.Normalize(vmin=m_ks.min(),vmax=m_ks.max())
     col = matplotlib.colorbar.ColorbarBase(cbar_ax,cmap='viridis',norm=norm,orientation='vertical',label='TRILEGAL apaprent magnitude')
 
-    plt.savefig('../Output/corrections.png')
+    ax[0].grid()
+    ax[0].set_axisbelow(True)
+    ax[1].grid()
+    ax[1].set_axisbelow(True)
+
+    plt.savefig('/home/oliver/Dropbox/Papers/Midterm/Images/C4_corrections.png')
+    # plt.savefig('../Output/corrections.png')
     plt.show()
+
+#__________________CALCULATING OUTLIER FRACTION____________________________
+    '''Red clump label: 4 | RGB label: 3'''
+    rctotal = tortoise(df[mask])
+    rctotal_mod = len(df[labels==4])
+    rcm = len(df[mask][labels==4])
+    rgbm = len(df[mask][labels==3])
+    starm = len(np.where(mask==True)[0])
+
+    print('\nTotal number of RC stars in the reduced sample: '+str(rctotal_mod)+', '+str(rctotal_mod*100/rctotal)+ '% of the total sample.')
+    print('Number of stars in mask: '+str(starm))
+    print('Percentage of which are RC: '+str(rcm*100/starm)+'%')
+    print('The remaining stars are all RGB stars.')
+    print('\nFraction of all RC stars identified: ' +str(rcm*100/rctotal_mod)+'%')

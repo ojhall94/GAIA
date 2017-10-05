@@ -9,12 +9,13 @@ import glob
 import sys
 import corner as corner
 from tqdm import tqdm
-import seaborn as sns
+# import seaborn as sns
 import emcee
 
 import matplotlib
 # import seaborn as sns
 import matplotlib.pyplot as plt
+import matplotlib.colors as colors
 from mpl_toolkits.mplot3d import Axes3D
 matplotlib.rcParams['xtick.direction'] = 'out'
 matplotlib.rcParams['ytick.direction'] = 'out'
@@ -57,7 +58,6 @@ def get_values():
 
     return M_ks[0:2000], m_ks[0:2000]
 
-
 if __name__ == '__main__':
     # vals = [-1.63,-1.59,-1.627,-1.626]
     # errs = [0.002,0.005,0.20,0.057]
@@ -77,6 +77,25 @@ if __name__ == '__main__':
     # sfile = glob.glob('../data/AM_TRI/k1.7*.txt')[0]
     sfile = glob.glob('../data/TRILEGAL_sim/*all*.txt')[0]
     df = pd.read_csv(sfile, sep='\s+')
+
+    # corr = [-0.5, -2.5, 15., 6., 1.4, -.5, .5]
+    # df['Aks'] = 0.114*df.Av #Cardelli+1989>-
+    # df['M_ks'] = df.Ks - df['m-M0'] - df.Aks
+    #
+    #
+    # #Set selection criteria
+    # df = df[df.M_ks < corr[0]]
+    # df = df[df.M_ks > corr[1]]
+    #
+    # df = df[df.Ks < corr[2]]
+    # df = df[df.Ks > corr[3]]
+
+    # df = df[df.Mact < corr[4]]
+
+    # df = df[df['[M/H]'] > corr[5]]
+    # df = df[df['[M/H]'] < corr[6]]
+
+    # df = df[df.stage < 5]
 
     '''This function corrects for extinction and sets the RC search range'''
     m_ks = df['Ks'].values
@@ -102,18 +121,27 @@ if __name__ == '__main__':
     fig, ax = plt.subplots()
     fig2, ax2 = plt.subplots(3,3)
     c = ['r','b','c','g','y','k','m','darkorange','chartreuse']
+    label = ['Pre-Main Sequence', 'Main Sequence', 'Subgiant Branch', 'Red Giant Branch', 'Core Helium Burning',\
+                'RR Lyrae variables', 'Cepheid Variables', 'Asymptotic Giant Branch','Supergiants']
     loc = [(0,0),(0,1),(0,2),(1,0),(1,1),(1,2),(2,0),(2,1),(2,2)]
     for i in range(int(np.nanmax(labels))+1):
-        ax.scatter(logT[labels==i],logL[labels==i],s=5,c=c[i],label=str(i))
-        im = ax2[loc[i]].scatter(logT[labels==i],logL[labels==i],s=10,c=Zish[labels==i],\
-                            cmap='viridis',vmin=-4,vmax=0.7)#vmin=0.0,vmax=4.)
-        ax2[loc[i]].set_title(str(i))
-        ax2[loc[i]].invert_xaxis()
+        if i != 5:
+            if i != 6:
+                if i!= 8:
+                    ax.scatter(logT[labels==i],logL[labels==i],s=5,c=c[i],alpha=.3,label=label[i])
+                    im = ax2[loc[i]].scatter(logT[labels==i],logL[labels==i],s=10,c=M[labels==i],\
+                                        cmap='viridis',vmin=0.0,vmax=2.)
+                    ax2[loc[i]].set_title(str(i))
+                    ax2[loc[i]].invert_xaxis()
 
-    ax.legend(loc='best')
+    ax.scatter(logT[labels==4],logL[labels==4],s=5,c=c[4],alpha=.5)
+    ax.legend(loc='best',fancybox=True)
     ax.invert_xaxis()
-    ax.set_xlabel('log(T)')
-    ax.set_ylabel('log(L)')
+    ax.set_xlabel(r"$log_{10}(T_{eff})$")
+    ax.set_ylabel(r'$log_{10}(L)$')
+    ax.set_title(r'HR Diagram for a TRILEGAL dataset of the $\textit{Kepler}$ field')
+    ax.grid()
+    ax.set_axisbelow(True)
     fig2.tight_layout()
 
     fig2.subplots_adjust(right=0.8)
@@ -121,8 +149,55 @@ if __name__ == '__main__':
     fig2.colorbar(im,cax=cbar_ax)
 
     fig.tight_layout()
-    plt.show()
+    fig.savefig('/home/oliver/Dropbox/Papers/Midterm/Images/C4_HR.png')
+    plt.show(fig)
+    plt.close('all')
 
+    sys.exit()
+
+    # df = df[df.M_ks < corr[0]]
+    # df = df[df.M_ks > corr[1]]
+    df = df[df.stage == 4]
+    df = df[df.logL < 3.2]
+    m_ks = df['Ks'].values
+    mu = df['m-M0'].values
+    Av = df['Av'].values
+    M = df['Mact'].values
+    labels = df['stage'].values
+    Zish = df['[M/H]'].values
+    logT = df['logTe'].values
+    logL = df['logL'].values
+
+
+
+    fig = plt.figure(figsize=(8,4))
+    ax1 = fig.add_axes([0.1,0.2,0.35,0.6])
+    ax2 = fig.add_axes([0.55,0.2,0.35,0.6],sharex=ax1,sharey=ax1)
+
+    s1 = ax1.scatter(logT[labels==4],logL[labels==4],s=10,c=M[labels==4],\
+                cmap='viridis',vmin=0.0,vmax=4.)
+    fig.colorbar(s1,label='Mass ($M_\odot$)',ax=ax1)
+    ax1.set_xlabel(r"$log_{10}(T_{eff})$")
+    ax1.set_ylabel(r"$log_{10}(L)$")
+    ax1.set_title('CHeB stars coloured by Mass')
+    ax1.invert_xaxis()
+
+    cmap = plt.cm.get_cmap('coolwarm')
+    s2 = ax2.scatter(logT[labels==4],logL[labels==4],s=10,c=Zish[labels==4],\
+                cmap=cmap, vmin=-2, vmax=1)
+    fig.colorbar(s2,label='[M/H]',extend='min',ax=ax2)
+    cmap.set_under("b")
+    ax2.set_xlabel("$log_{10}(T_{eff})$")
+    ax2.set_ylabel("$log_{10}(L)$")
+    ax2.set_title('CHeB stars coloured by [M/H]')
+
+    fig.savefig('/home/oliver/Dropbox/Papers/Midterm/Images/C4_CHeB.png')
+    plt.show()
+    plt.close('all')
+
+
+
+    sys.exit()
     x, y = get_values()
     xerr = np.abs(0.01 + np.random.normal(0, 1, len(x)) * 0.005)
     yerr = np.abs(0.1 + np.random.normal(0, 1, len(y)) * 0.05)
