@@ -26,37 +26,72 @@ import scipy.stats as stats
 import scipy.misc as misc
 
 def get_values():
-    sfile = glob.glob('../data/AM_TRI/k1.7*.txt')[0]
-    # sfile = glob.glob('../data/TRILEGAL/*.dat')[0]
+    # sfile = glob.glob('../data/TRILEGAL_sim/*.all.*.txt')[0]
+    sfile = glob.glob('../data/TRILEGAL_sim/*all*.txt')[0]
+    # sfile = glob.glob('../data/Ben_Fun/TRI3*')[0]
     df = pd.read_csv(sfile, sep='\s+')
 
     '''This function corrects for extinction and sets the RC search range'''
-    m_ks = df['Keplermag'].values
-    mu = df['mu0'].values
-    Av = df['Av'].values
-    Aks = 0.114*Av #Cardelli+1989
+    df['Aks'] = 0.114*df.Av #Cardelli+1989>-
+    df['M_ks'] = df.Ks - df['m-M0'] - df.Aks
+    #
+    corrections = pd.DataFrame(columns=['M_ks<','M_ks>','Ks<','Ks>','Mact<','M/H>','M/H<'])
+    corr = [-0.5, -2.5, 15., 6., 1.5, -.5, .5]
+    corrections.loc[0] = corr
+    corrections.to_csv('../Output/data_selection.csv')
 
-    M_ks = m_ks - mu - Aks
+    #Set selection criteria
+    df = df[df.M_ks < corr[0]]
+    df = df[df.M_ks > corr[1]]
 
-    #Range: y:{7,10}, x:{-3, 0}
-    '''There must be a better way...'''
-    sel = np.where(M_ks < -0.25)
-    M_ks = M_ks[sel]
-    m_ks = m_ks[sel]
+    df = df[df.Ks < corr[2]]
+    df = df[df.Ks > corr[3]]
 
-    sel = np.where(M_ks > -2.)
-    M_ks = M_ks[sel]
-    m_ks = m_ks[sel]
+    df = df[df.Mact < corr[4]]
+    df = df[df.Mact > 1.]
 
-    sel = np.where(m_ks < 16.)
-    M_ks = M_ks[sel]
-    m_ks = m_ks[sel]
+    df = df[df['[M/H]'] > corr[5]]
+    df = df[df['[M/H]'] < corr[6]]
 
-    sel = np.where(m_ks > 7.)
-    M_ks = M_ks[sel]
-    m_ks = m_ks[sel]
+    # df = df[df.logg < 2.6]
+    # df = df[df.logg > 2.475]
+    # df = df[df.logL < 3.2]
 
-    return M_ks[0:2000], m_ks[0:2000]
+    df = df[df['Ks'] < 10.5]
+    df = df[df['Ks'] > 7.0]
+
+    # df = df[df.stage == 4]
+    df = df[0:5000]
+
+    df = get_errors(df)
+
+    return df.M_ks.values, df.Ks.values, df.stage, df
+
+def get_errors(df):
+    DR = 2  #Choosing the data release
+    if DR == 1:
+        df['pi_err'] = np.abs(0.3 + np.random.normal(0,0.5,len(df)) * 0.3) #mas
+
+    if DR == 2:
+        df['pi_err'] = np.abs(10.e-3 + np.random.normal(0,0.5,len(df)) * 2.e-3) #mas
+
+    df['d'] = 10**(1+ (df['m-M0']/5))       #Getting all distances (pc)
+    df['pi'] = 1000/df['d']                 #Getting all parallax (mas)
+    df['sig_d'] = (1000*df['pi_err']/df['pi']**2)  #Propagating the Gaia error
+
+    df['sig_mu'] = np.sqrt( (5*np.log10(np.e)/df['d'])**2 * df['sig_d']**2 )
+    df['sig_M'] = df['sig_mu']  #Until we incorporate errors on Aks and Ks
+
+    # plt.errorbar(df['pi'],df['Ks'],xerr=df['pi_err'],alpha=.1,fmt=".k",c='grey',zorder=999)
+    # plt.scatter(df['pi'],df['Ks'],s=5,zorder=1000)
+    # plt.show()
+    #
+    # plt.errorbar(df['d'],df['Ks'],xerr=df['sig_d'],alpha=.1,fmt=".k",c='grey',zorder=999)
+    # plt.scatter(df['d'],df['Ks'],s=5,zorder=1000)
+    # plt.show()
+    return df
+
+
 
 if __name__ == '__main__':
     # vals = [-1.63,-1.59,-1.627,-1.626]
@@ -71,6 +106,51 @@ if __name__ == '__main__':
     # # ax.set_ylabel('Absolute Red Clump magnitude (TRILEGAL)')
     # # fig.tight_layout()
     # # plt.show()
+
+    x, y, labels, df = get_values()
+    # xerr = df['sig_M']
+
+    c = ['r','b','c','g','y','k','m','darkorange','chartreuse']
+    label = ['Pre-Main Sequence', 'Main Sequence', 'Subgiant Branch', 'Red Giant Branch', 'Core Helium Burning',\
+                'RR Lyrae variables', 'Cepheid Variables', 'Asymptotic Giant Branch','Supergiants']
+    # for i in range(int(np.nanmax(labels))+1):
+    #     ax.scatter(x[labels==i], y[labels==i], c=c[i], s=1,zorder=1000,label=label[i])
+    # ax.scatter(x[labels==3], y[labels==3], c=c[3], s=3,zorder=1000,label=label[3])
+    # ax.scatter(x[labels==4], y[labels==4], c=c[4], s=3,zorder=1000,label=label[4])
+
+    fig, ax = plt.subplots(2,2,sharex=True,sharey=True)
+    aM = ax[0,0].scatter(x,y,cmap='viridis',c=df.Mact,s=3,vmin=0.,vmax=1.5)
+    aZ = ax[0,1].scatter(x,y,cmap='BrBG',c=df['[M/H]'],s=3)
+    aG = ax[1,0].scatter(x,y,cmap='RdBu',c=df.logg,s=3,vmin=2.475,vmax=2.6)
+    aA = ax[1,1].scatter(x,y,cmap='RdBu_r',c=df.logAge,s=3)
+
+    ax[0,0].set_xlabel(r"$M_{Ks}$")
+    ax[0,0].set_ylabel(r"$m_{Ks}$")
+    ax[0,0].grid()
+    ax[1,0].grid()
+    ax[0,1].grid()
+    ax[1,1].grid()
+    ax[0,0].set_axisbelow(True)
+    ax[1,0].set_axisbelow(True)
+    ax[0,1].set_axisbelow(True)
+    ax[1,1].set_axisbelow(True)
+
+    fig.colorbar(aM,label='Mass',extend='both',ax=ax[0,0])
+    fig.colorbar(aZ,label='[M/H]',extend='both',ax=ax[0,1])
+    fig.colorbar(aG,label='log(g)',extend='both',ax=ax[1,0])
+    fig.colorbar(aA,label='log(Age)',extend='both',ax=ax[1,1])
+    fig.suptitle(r"Labeled TRILEGAL simulated data for (M $<$ 1.5Msol, -.5 $<$ [M/H] $<$ .5)")
+
+    fig2, ax2 = plt.subplots()
+    for i in range(int(np.nanmax(labels))+1):
+        ax2.scatter(x[df.stage==i],y[df.stage==i],s=3,c=c[i])
+
+    plt.show()
+    plt.close('all')
+
+    sys.exit()
+
+
 
 
     # sfile = glob.glob('../data/AM_TRI/k1.7*.txt')[0]
@@ -107,39 +187,28 @@ if __name__ == '__main__':
     logT = df['logTe'].values
     logL = df['logL'].values
 
-    '''This function corrects for extinction and sets the RC search range'''
-    # m_ks = df['Ksmag'].values
-    # mu = df['mu0'].values
-    # Av = df['Av'].values
-    # M = df['Mass'].values
-    # labels = df['label'].values
-    # logT = df['logTe'].values
-    # logL = df['logL'].values
-    # Zish = df['M_H'].values
-
-
     fig, ax = plt.subplots()
     fig2, ax2 = plt.subplots(3,3)
     c = ['r','b','c','g','y','k','m','darkorange','chartreuse']
     label = ['Pre-Main Sequence', 'Main Sequence', 'Subgiant Branch', 'Red Giant Branch', 'Core Helium Burning',\
-                'RR Lyrae variables', 'Cepheid Variables', 'Asymptotic Giant Branch','Supergiants']
+                '??', '??', 'Asymptotic Giant Branch','Supergiants']
     loc = [(0,0),(0,1),(0,2),(1,0),(1,1),(1,2),(2,0),(2,1),(2,2)]
     for i in range(int(np.nanmax(labels))+1):
-        if i != 5:
-            if i != 6:
-                if i!= 8:
-                    ax.scatter(logT[labels==i],logL[labels==i],s=5,c=c[i],alpha=.3,label=label[i])
-                    im = ax2[loc[i]].scatter(logT[labels==i],logL[labels==i],s=10,c=M[labels==i],\
-                                        cmap='viridis',vmin=0.0,vmax=2.)
-                    ax2[loc[i]].set_title(str(i))
-                    ax2[loc[i]].invert_xaxis()
+        # if i != 5:
+        #     if i != 6:
+        #         if i!= 8:
+        ax.scatter(logT[labels==i],logL[labels==i],s=5,c=c[i],alpha=.3,label=label[i])
+        im = ax2[loc[i]].scatter(logT[labels==i],logL[labels==i],s=10,c=M[labels==i],\
+                            cmap='viridis',vmin=0.0,vmax=2.)
+        ax2[loc[i]].set_title(str(i))
+        ax2[loc[i]].invert_xaxis()
 
     ax.scatter(logT[labels==4],logL[labels==4],s=5,c=c[4],alpha=.5)
     ax.legend(loc='best',fancybox=True)
     ax.invert_xaxis()
     ax.set_xlabel(r"$log_{10}(T_{eff})$")
     ax.set_ylabel(r'$log_{10}(L)$')
-    ax.set_title(r'HR Diagram for a TRILEGAL dataset of the $\textit{Kepler}$ field')
+    ax.set_title(r"HR Diagram for a TRILEGAL dataset of the $\textit{Kepler}$ field")
     ax.grid()
     ax.set_axisbelow(True)
     fig2.tight_layout()
@@ -148,53 +217,80 @@ if __name__ == '__main__':
     cbar_ax = fig2.add_axes([0.85,0.15,0.05,0.7])
     fig2.colorbar(im,cax=cbar_ax)
 
-    fig.tight_layout()
-    fig.savefig('/home/oliver/Dropbox/Papers/Midterm/Images/C4_HR.png')
+    # fig.tight_layout()
+    # fig.savefig('/home/oliver/Dropbox/Papers/Midterm/Images/C4_HR.png')
     plt.show(fig)
     plt.close('all')
 
-    sys.exit()
 
-    # df = df[df.M_ks < corr[0]]
-    # df = df[df.M_ks > corr[1]]
-    df = df[df.stage == 4]
-    df = df[df.logL < 3.2]
+    '''Comparisonplot'''
+    sfile = glob.glob('../data/TRILEGAL_sim/*all*.txt')[0]
+    dff = pd.read_csv(sfile, sep=',')
+    dff['Aks'] = 0.114*dff.Av #Cardelli+1989>-
+    dff['M_ks'] = dff.Ks - dff['m-M0'] - dff.Aks
+    corr = [-1.0, -2.5, 15., 6., 1.5, -.5, .5]
+
+    #Set selection criteria
+    df = dff[dff.M_ks < corr[0]]
+    df = df[df.M_ks > corr[1]]
+
+    df = df[df.Ks < corr[2]]
+    df = df[df.Ks > corr[3]]
+
+    df = df[df.Mact < corr[4]]
+
+    df = df[df['[M/H]'] > corr[5]]
+    df = df[df['[M/H]'] < corr[6]]
+    # df = df[df.logL < 3.2]
+    # df = dff[(dff.stage == 4) | (dff.stage == 5) | (dff.stage==6)]
+
     m_ks = df['Ks'].values
     mu = df['m-M0'].values
     Av = df['Av'].values
     M = df['Mact'].values
     labels = df['stage'].values
     Zish = df['[M/H]'].values
-    logT = df['logTe'].values
     logL = df['logL'].values
+    logT = df['logTe'].values
+    logg = df['logg'].values
 
+    c=[]
+    for i, row in enumerate(labels):
+        if labels[i]==4:
+            c.append('r')
+        if labels[i]==5:
+            c.append('b')
+        if labels[i]==6:
+            c.append('k')
+        if labels[i]==3:
+            c.append('c')
 
+    '''Comp-plot'''
+    for i in range(1):
+        fig = plt.figure(figsize=(8,4))
+        ax1 = fig.add_axes([0.1,0.2,0.35,0.6])
+        ax2 = fig.add_axes([0.55,0.2,0.35,0.6],sharex=ax1,sharey=ax1)
 
-    fig = plt.figure(figsize=(8,4))
-    ax1 = fig.add_axes([0.1,0.2,0.35,0.6])
-    ax2 = fig.add_axes([0.55,0.2,0.35,0.6],sharex=ax1,sharey=ax1)
+        s1 = ax1.scatter(logT,logL,s=10,c=M,\
+                    cmap='viridis',vmin=0.7,vmax=1.5)
+        fig.colorbar(s1,label='Mass ($M_\odot$)',ax=ax1)
+        ax1.set_xlabel(r"$log_{10}(T_{eff})$")
+        ax1.set_ylabel(r"$log_{10}(L)$")
+        ax1.set_title('CHeB stars coloured by Mass')
+        ax1.invert_xaxis()
 
-    s1 = ax1.scatter(logT[labels==4],logL[labels==4],s=10,c=M[labels==4],\
-                cmap='viridis',vmin=0.0,vmax=4.)
-    fig.colorbar(s1,label='Mass ($M_\odot$)',ax=ax1)
-    ax1.set_xlabel(r"$log_{10}(T_{eff})$")
-    ax1.set_ylabel(r"$log_{10}(L)$")
-    ax1.set_title('CHeB stars coloured by Mass')
-    ax1.invert_xaxis()
+        cmap = plt.cm.get_cmap('coolwarm')
+        s2 = ax2.scatter(logT,logL,s=10,c=logg,\
+                    cmap=cmap)#, vmin=-0.5, vmax=0.5)
+        fig.colorbar(s2,label='logg',extend='min',ax=ax2)
+        cmap.set_under("b")
+        ax2.set_xlabel("$log_{10}(T_{eff})$")
+        ax2.set_ylabel("$log_{10}(L)$")
+        ax2.set_title('CHeB stars coloured by log(g)')
 
-    cmap = plt.cm.get_cmap('coolwarm')
-    s2 = ax2.scatter(logT[labels==4],logL[labels==4],s=10,c=Zish[labels==4],\
-                cmap=cmap, vmin=-2, vmax=1)
-    fig.colorbar(s2,label='[M/H]',extend='min',ax=ax2)
-    cmap.set_under("b")
-    ax2.set_xlabel("$log_{10}(T_{eff})$")
-    ax2.set_ylabel("$log_{10}(L)$")
-    ax2.set_title('CHeB stars coloured by [M/H]')
-
-    fig.savefig('/home/oliver/Dropbox/Papers/Midterm/Images/C4_CHeB.png')
-    plt.show()
-    plt.close('all')
-
+        # fig.savefig('/home/oliver/Dropbox/Papers/Midterm/Images/C4_CHeB.png')
+        plt.show()
+        plt.close('all')
 
 
     sys.exit()
