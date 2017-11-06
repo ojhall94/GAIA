@@ -56,38 +56,32 @@ if __name__ == '__main__':
     dfC = pd.concat([dfC3,dfC6])
     dfT = pd.concat([dfT3,dfT6])
 
-    # mt = np.mean(dfT.Kmag)
-    # mc = np.mean(dfC.Ks)
-    # m = mt - (mt-mc)/2
-    # l = m - dfC.Ks
-    # dfC.Ks += l
-
+    dfC.rename(columns={'Ks' : 'M_ks', 'J' : 'M_j', 'H' : 'M_h'} , inplace=True)
 
     #Cardelli+1989
     Jcorr = 0.282
     Hcorr = 0.190
     Kcorr = 0.114
 
-    # tm = np.mean(dfT3.Kmag)
-    # cm = np.mean(dfC3.Ks)
-    # diff = tm - cm
-    # dfC3.Ks = dfC3.Ks + diff
-
+    #Finding K2 Apparent in Ks, TRILEGAL absolute in Ks
     dfC['Aks'] = Kcorr*dfC.Av
-    dfC['M_ks'] = dfC.Ks - dfC['mu0'] - dfC.Aks
+    dfC['Ks'] = dfC.M_ks + dfC['mu0'] + dfC.Aks
     dfT['Aks'] = Kcorr*dfT.Av
     dfT['M_ks'] = dfT.Kmag - dfT['mu0'] - dfT.Aks
 
+    #Finding K2 Apparent in J, TRILEGAL absolute in J
     dfC['Aj'] = Jcorr*dfC.Av
-    dfC['M_j'] = dfC.J - dfC['mu0'] - dfC.Aj
+    dfC['J'] = dfC.M_j + dfC['mu0'] + dfC.Aj
     dfT['Aj'] = Jcorr*dfT.Av
     dfT['M_j'] = dfT.Jmag - dfT['mu0'] - dfT.Aj
 
+    #Finding K2 Apparent in H, TRILEGAL absolute in H
     dfC['Ah'] = Hcorr*dfC.Av
-    dfC['M_h'] = dfC.H - dfC['mu0'] - dfC.Ah
+    dfC['H'] = dfC.M_h + dfC['mu0'] + dfC.Ah
     dfT['Ah'] = Hcorr*dfT.Av
     dfT['M_h'] = dfT.Hmag - dfT['mu0'] - dfT.Ah
 
+    #Calculing HR Diagram values
     dfC['L'] = 4*np.pi*(dfC.rad*695700e3)**2*5.67e-8*dfC.Teff**4
     dfC['logL'] = np.log10(dfC['L']/3.828e26)
     dfC['logT'] = np.log10(dfC.Teff)
@@ -142,6 +136,40 @@ if __name__ == '__main__':
     ax32.scatter(dfT[dfT.label==4].logTe,dfT[dfT.label==4].Kmag,s=3,c='y',label='CHeB')
     ax32.set_title('TRILEGAL sim of K2 C3')
     ax32.legend(loc='best',fancybox=True)
+
+    fig4 = plt.figure(figsize=(8,4))
+    ax41 = fig4.add_axes([0.1,0.2,0.35,0.6])
+    ax42 = fig4.add_axes([0.55,0.2,0.35,0.6],sharex=ax41,sharey=ax41)
+
+    ax41.scatter(dfC.M_ks,dfC.Ks,s=3)
+    ax41.set_title('K2 Campaign 3 data')
+    ax41.invert_xaxis()
+    ax41.set_xlabel("Aboluste Magnitude (Ks)")
+    ax41.set_ylabel('Apparent Magnitude (Ks)')
+
+    ax42.scatter(dfT[dfT.label==3].M_ks,dfT[dfT.label==3].Kmag,s=3,c='g',label='RGB')
+    ax42.scatter(dfT[dfT.label==4].M_ks,dfT[dfT.label==4].Kmag,s=3,c='y',label='CHeB')
+    ax42.set_title('TRILEGAL sim of K2 C3')
+    ax42.legend(loc='best',fancybox=True)
+
+    fig5, ax5 = plt.subplots(2,2,sharex=True)
+    ax5[0,0].scatter(dfC.M_ks,dfC.Ks,s=3)
+    ax5[0,0].set_title('K2 C3 and C6 data')
+    ax5[0,0].set_xlabel("Aboluste Magnitude (Ks)")
+    ax5[0,0].set_ylabel('Apparent Magnitude (Ks)')
+
+    ax5[1,0].hist(dfC.M_ks, bins=int(np.sqrt(len(dfC.M_ks))), color='k', histtype='step', normed=1)
+    ax5[1,0].set_title('Histogram in Absolute magnitude')
+
+    ax5[0,1].scatter(dfT[dfT.label==3].M_ks,dfT[dfT.label==3].Kmag,s=3,c='g',label='RGB')
+    ax5[0,1].scatter(dfT[dfT.label==4].M_ks,dfT[dfT.label==4].Kmag,s=3,c='y',label='CHeB')
+    ax5[0,1].set_title('TRILEGAL sim of K2 C3 and C6')
+    ax5[0,1].legend(loc='best',fancybox=True)
+
+    ax5[1,1].hist(dfT.M_ks, bins=int(np.sqrt(len(dfT.M_ks))), color='k', histtype='step', normed=1)
+    ax5[1,1].set_title('Histogram in Absolute magnitude')
+    fig5.tight_layout()
+    fig5.savefig('Output/investigate_k2.png')
 
 
     '''HR Comparison'''
