@@ -42,51 +42,7 @@ def get_errors(df):
     df['sig_M'] = df['sig_mu']  #Until we incorporate errors on Aks and Ks
     return df
 
-
-
-if __name__ == '__main__':
-
-    files = glob.glob('../data/Ben_Fun/*3*')
-    dfC3 = pd.read_csv(files[0], sep=',')
-    dfT3 = pd.read_csv(files[1], sep=',')
-    files = glob.glob('../data/Ben_Fun/*6*')
-    dfC6 = pd.read_csv(files[0], sep=',')
-    dfT6 = pd.read_csv(files[1],sep=',')
-
-    dfC = pd.concat([dfC3,dfC6])
-    dfT = pd.concat([dfT3,dfT6])
-
-    dfC.rename(columns={'Ks' : 'M_ks', 'J' : 'M_j', 'H' : 'M_h'} , inplace=True)
-
-    #Cardelli+1989
-    Jcorr = 0.282
-    Hcorr = 0.190
-    Kcorr = 0.114
-
-    #Finding K2 Apparent in Ks, TRILEGAL absolute in Ks
-    dfC['Aks'] = Kcorr*dfC.Av
-    dfC['Ks'] = dfC.M_ks + dfC['mu0'] + dfC.Aks
-    dfT['Aks'] = Kcorr*dfT.Av
-    dfT['M_ks'] = dfT.Kmag - dfT['mu0'] - dfT.Aks
-
-    #Finding K2 Apparent in J, TRILEGAL absolute in J
-    dfC['Aj'] = Jcorr*dfC.Av
-    dfC['J'] = dfC.M_j + dfC['mu0'] + dfC.Aj
-    dfT['Aj'] = Jcorr*dfT.Av
-    dfT['M_j'] = dfT.Jmag - dfT['mu0'] - dfT.Aj
-
-    #Finding K2 Apparent in H, TRILEGAL absolute in H
-    dfC['Ah'] = Hcorr*dfC.Av
-    dfC['H'] = dfC.M_h + dfC['mu0'] + dfC.Ah
-    dfT['Ah'] = Hcorr*dfT.Av
-    dfT['M_h'] = dfT.Hmag - dfT['mu0'] - dfT.Ah
-
-    #Calculing HR Diagram values
-    dfC['L'] = 4*np.pi*(dfC.rad*695700e3)**2*5.67e-8*dfC.Teff**4
-    dfC['logL'] = np.log10(dfC['L']/3.828e26)
-    dfC['logT'] = np.log10(dfC.Teff)
-
-
+def get_plots(dfC, dfT):
     '''MKs vs mKs comparison'''
     plt.close('all')
     fig1 = plt.figure(figsize=(8,4))
@@ -188,6 +144,57 @@ if __name__ == '__main__':
     ax2.set_title('TRILEGAL sim of K2 C3')
     ax2.legend(loc='best',fancybox=True)
     plt.show()
+    return 0
+
+
+if __name__ == '__main__':
+
+    files = glob.glob('../data/Ben_Fun/*3*')
+    dfC3 = pd.read_csv(files[0], sep=',')
+    dfT3 = pd.read_csv(files[1], sep=',')
+    files = glob.glob('../data/Ben_Fun/*6*')
+    dfC6 = pd.read_csv(files[0], sep=',')
+    dfT6 = pd.read_csv(files[1],sep=',')
+
+    dfC = pd.concat([dfC3,dfC6])
+    dfT = pd.concat([dfT3,dfT6])
+
+    dfC.rename(columns={'Ks' : 'M_ks', 'J' : 'M_j', 'H' : 'M_h'} , inplace=True)
+
+    #Cardelli+1989
+    Jcorr = 0.282
+    Hcorr = 0.190
+    Kcorr = 0.114
+
+    #Finding K2 Apparent in Ks, TRILEGAL absolute in Ks
+    dfC['Aks'] = Kcorr*dfC.Av
+    dfC['Ks'] = dfC.M_ks + dfC['mu0'] + dfC.Aks
+    dfT['Aks'] = Kcorr*dfT.Av
+    dfT['M_ks'] = dfT.Kmag - dfT['mu0'] - dfT.Aks
+
+    #Finding K2 Apparent in J, TRILEGAL absolute in J
+    dfC['Aj'] = Jcorr*dfC.Av
+    dfC['J'] = dfC.M_j + dfC['mu0'] + dfC.Aj
+    dfT['Aj'] = Jcorr*dfT.Av
+    dfT['M_j'] = dfT.Jmag - dfT['mu0'] - dfT.Aj
+
+    #Finding K2 Apparent in H, TRILEGAL absolute in H
+    dfC['Ah'] = Hcorr*dfC.Av
+    dfC['H'] = dfC.M_h + dfC['mu0'] + dfC.Ah
+    dfT['Ah'] = Hcorr*dfT.Av
+    dfT['M_h'] = dfT.Hmag - dfT['mu0'] - dfT.Ah
+
+    #Calculing HR Diagram values
+    dfC['L'] = 4*np.pi*(dfC.rad*695700e3)**2*5.67e-8*dfC.Teff**4
+    dfC['logL'] = np.log10(dfC['L']/3.828e26)
+    dfC['logT'] = np.log10(dfC.Teff)
+
+    get_plots(dfC, dfT)
+
+
+
+
+
 
     '''CODE GRAVEYARD'''
     # fig2 = plt.figure(figsize=(8,4))
