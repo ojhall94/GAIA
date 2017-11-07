@@ -4,13 +4,15 @@
 
 import numpy as np
 import pandas as pd
-
+from pyqt_fit import kde
 import glob
 import sys
 import corner as corner
 from tqdm import tqdm
 # import seaborn as sns
 import emcee
+import scipy.interpolate as interpolate
+import scipy.integrate as integrate
 
 import matplotlib
 # import seaborn as sns
@@ -34,6 +36,9 @@ def get_values(frame):
 
     dfC = pd.concat([dfC3,dfC6])
     dfT = pd.concat([dfT3,dfT6])
+    dfC = dfC6
+    dfT = dfT6
+
 
     dfC.rename(columns={'Ks' : 'M_ks', 'J' : 'M_j', 'H' : 'M_h'} , inplace=True)
     dfT.rename(columns={'Kmag' : 'Ks', 'Jmag' : 'J', 'Hmag' : 'H'}, inplace=True)
@@ -92,54 +97,72 @@ def get_errors(df, type='true'):
 
     return df
 
-def lnprior(p):
-    # We'll just put reasonable uniform priors on all the parameters.
-    if not all(b[0] < v < b[1] for v, b in zip(p, bounds)):
-        return -np.inf
-    return 0
+class Prior:
+    def __init__(self, _bounds):
+        self.bounds = _bounds
+
+    def lnprior(self, p):
+        if not all(b[0] < v < b[1] for v, b in zip(p, self.bounds)):
+            return -np.inf
+        return 0
+
+    def __call__(self, p):
+        prior = self.lnprior(p)
+        return prior
 
 # The "foreground" linear likelihood:
-def lnlike_fg(p):
-    b, sigrc, _, o, sigo = p
-    sig = np.sqrt(sigrc**2 + xerr**2)
+class Likelihood:
+    def __init__(self,_x,_y,_xerr, _lnprior):
+        self.x = _x
+        self.y = _y
+        self.xerr = _xerr
+        self.lnprior = _lnprior
 
-    return -0.5 * ((x - b) / sig)**2 - np.log(sig)
+    def lnlike_fg(self, p):
+        b, sigrc, _, o, sigo = p
+        sig = np.sqrt(sigrc**2 + self.xerr**2)
+
+        return -0.5 * ((self.x - b) / sig)**2 - np.log(sig)
 
 # The "background" outlier likelihood:
-def lnlike_bg(p):
-    _, _, Q, o, sigo = p
-    sig = np.sqrt(sigo**2 + xerr**2)
-    val = np.abs(x).max() + np.abs(x).min()
+    def lnlike_bg(self, p):
+        _, _, Q, o, sigo = p
+        sig = np.sqrt(sigo**2 + self.xerr**2)
+        val = np.abs(self.x).max() + np.abs(self.x).min()
 
-    xn = x + val
-    on = np.abs(o)
+        xn = self.x + val
+        on = np.abs(o)
 
-    return -np.log(xn) -np.log(sig) - 0.5 * (np.log(xn) - on)**2/sig**2
+        return -np.log(xn) -np.log(sig) - 0.5 * (np.log(xn) - on)**2/sig**2
 
 # Full probabilistic model.
-def lnprob(p):
-    b, sigrc, Q, o, sigo = p
+    def lnprob(self, p):
+        b, sigrc, Q, o, sigo = p
 
-    # First check the prior.
-    lp = lnprior(p)
-    if not np.isfinite(lp):
-        return -np.inf, None
+        # First check the prior.
+        lp = self.lnprior(p)
+        if not np.isfinite(lp):
+            return -np.inf, None
 
-    # Compute the vector of foreground likelihoods and include the q prior.
-    ll_fg = lnlike_fg(p)
-    arg1 = ll_fg + np.log(Q)
+        # Compute the vector of foreground likelihoods and include the q prior.
+        ll_fg = self.lnlike_fg(p)
+        arg1 = ll_fg + np.log(Q)
 
-    # Compute the vector of background likelihoods and include the q prior.
-    ll_bg = lnlike_bg(p)
-    arg2 = ll_bg + np.log(1.0 - Q)
+        # Compute the vector of background likelihoods and include the q prior.
+        ll_bg = self.lnlike_bg(p)
+        arg2 = ll_bg + np.log(1.0 - Q)
 
-    # Combine these using log-add-exp for numerical stability.
-    ll = np.sum(np.logaddexp(arg1, arg2))
+        # Combine these using log-add-exp for numerical stability.
+        ll = np.nansum(np.logaddexp(arg1, arg2))
 
-    # We're using emcee's "blobs" feature in order to keep track of the
-    # foreground and background likelihoods for reasons that will become
-    # clear soon.
-    return lp + ll
+        # We're using emcee's "blobs" feature in order to keep track of the
+        # foreground and background likelihoods for reasons that will become
+        # clear soon.
+        return lp + ll
+
+    def __call__(self, p):
+        logL = self.lnprob(p)
+        return logL
 
 def save_library(df, chain,labels_mc):
     results = pd.DataFrame(columns=labels_mc)
@@ -161,7 +184,6 @@ if __name__ == '__main__':
     plt.close('all')
 ####---SETTING UP DATA
     x, y, xerr, dfC, df= get_values('TRILEGAL')
-
 
 ####---PLOTTING INITIAL DATA
     fig5, ax5 = plt.subplots(2,2,sharex=True)
@@ -192,6 +214,9 @@ if __name__ == '__main__':
     bounds = [(-2.0,-1.4), (0.01,0.2), (0, 1), (0.0,2.0), (0.1, 2.)]
     start_params = np.array([-1.6, 0.1, 0.5, 0.1, 1.0])
 
+    lnprior = Prior(bounds)
+    Like = Likelihood(x, y, xerr, lnprior)
+
     # Initialize the walkers at a reasonable location.
     ntemps, ndims, nwalkers = 2, len(bounds), 32
 
@@ -201,7 +226,7 @@ if __name__ == '__main__':
             p0[i,j,:] = start_params * (1.0 + np.random.randn(ndims) * 0.0001)
 
     # Set up the sampler.
-    sampler = emcee.PTSampler(ntemps, nwalkers, ndims, lnprob, lnprior,threads=2)
+    sampler = emcee.PTSampler(ntemps, nwalkers, ndims, Like, lnprior,threads=2)
 
     # Run a burn-in chain and save the final location.
     print('Burning in emcee...')
@@ -231,8 +256,8 @@ if __name__ == '__main__':
     print('About to do posteriors...')
     for i in tqdm(range(lotemp.shape[0])):
         for j in range(lotemp.shape[1]):
-            ll_fg = lnlike_fg(lotemp[i,j])
-            ll_bg = lnlike_bg(lotemp[i,j])
+            ll_fg = Like.lnlike_fg(lotemp[i,j])
+            ll_bg = Like.lnlike_bg(lotemp[i,j])
             fg_pp += np.exp(ll_fg - np.logaddexp(ll_fg, ll_bg))
             bg_pp += np.exp(ll_bg - np.logaddexp(ll_fg, ll_bg))
             norm += 1
@@ -293,7 +318,19 @@ if __name__ == '__main__':
     plt.savefig('Output/Ben_K2/TRILEGAL_result-comp.png')
     plt.close('all')
 
-
+    '''Getting KDEs'''
+    kdes = []
+    fig, ax = plt.subplots(chain.shape[1],chain.shape[1])
+    for n in range(chain.shape[1]):
+        est_large = kde.KDE1D(chain[:,n])
+        xs, ys = est_large.grid()
+        kdes.append(np.array([xs,ys]))
+        a = ax[n,n].hist(chain[:,n],bins=int(np.sqrt(len(chain[:,n]))),histtype='step',color='k', normed=True)
+        ax[n,n].plot(xs,ys,c='cornflowerblue')
+        ax[n,n].set_title(labels_mc[n])
+    fig.tight_layout()
+    fig.savefig('Output/Ben_K2/KDE_fits.png')
+    plt.close(fig)
 
 
 ####---SETTING UP AND RUNNING MCMC
@@ -301,23 +338,38 @@ if __name__ == '__main__':
     x, y, xerr, df, dfT= get_values('K2')
 
     start_params = res
-    bounds = [(res[0]-2*res[1],res[0]+2*res[1]), (res[1]-10*std[1],res[1]+10*std[1]),\
-                (0, 1), (0.0,2.0), (0.1, 2.)]
+    start_params[2] = 0.5
+    bounds = [(res[0]-res[1],res[0]+res[1]), (res[1]-5*std[1],res[1]+5*std[1]),\
+                (0, 1), (0.0, 2.0), (0.1, 2.)]
+
+    # bounds = [(kdes[0][0,0],kdes[0][0,-1]),\
+    #           (kdes[1][0,0],kdes[1][0,-1]),\
+    #           (0.,1.),\
+    #           (kdes[3][0,0],kdes[3][0,-1]),\
+    #           (kdes[4][0,0],kdes[4][0,-1])]
+    # if bounds[2][0] < 0.0:  #Q check
+    #     bounds[2] = (0.0,bounds[2][1])
+
+    lnprior = Prior(bounds)
+    Like = Likelihood(x, y, xerr, lnprior)
 
     # Initialize the walkers at a reasonable location.
     ntemps, ndims, nwalkers = 2, len(bounds), 32
 
     p0 = np.zeros([ntemps,nwalkers,ndims])
     for i in range(ntemps):
-        for j in range(nwalkers):
-            p0[i,j,:] = start_params * (1.0 + np.random.randn(ndims) * 0.0001)
+        for j in range(ndims):
+            xs, ys = kdes[j]
+            cdf = integrate.cumtrapz(ys, xs,initial=0)
+            inv_cdf = interpolate.interp1d(cdf, xs)
+            p0[i,:,j] = inv_cdf(np.random.rand(nwalkers))
 
     # Set up the sampler.
-    sampler = emcee.PTSampler(ntemps, nwalkers, ndims, lnprob, lnprior,threads=2)
+    sampler = emcee.PTSampler(ntemps, nwalkers, ndims, Like, lnprior,threads=2)
 
     # Run a burn-in chain and save the final location.
     print('Burning in emcee...')
-    for p1, lnpp, lnlp in tqdm(sampler.sample(p0, iterations=1000)):
+    for p1, lnpp, lnlp in tqdm(sampler.sample(p0, iterations=500)):
         pass
 
     # Run the production chain.
@@ -342,8 +394,8 @@ if __name__ == '__main__':
     print('About to do posteriors...')
     for i in tqdm(range(lotemp.shape[0])):
         for j in range(lotemp.shape[1]):
-            ll_fg = lnlike_fg(lotemp[i,j])
-            ll_bg = lnlike_bg(lotemp[i,j])
+            ll_fg = Like.lnlike_fg(lotemp[i,j])
+            ll_bg = Like.lnlike_bg(lotemp[i,j])
             fg_pp += np.exp(ll_fg - np.logaddexp(ll_fg, ll_bg))
             bg_pp += np.exp(ll_bg - np.logaddexp(ll_fg, ll_bg))
             norm += 1
