@@ -28,6 +28,7 @@ import scipy.misc as misc
 
 import cPrior
 import cLikelihood
+import cMCMC
 
 def get_values(frame):
     files = glob.glob('../data/Ben_Fun/*3*')
@@ -180,7 +181,7 @@ if __name__ == '__main__':
     # Initialize the walkers at a reasonable location.
     ntemps, nwalkers = 2, 32
 
-    Fit = cMCMC.MCMC(start_params, Like, lnprior, 0, ntemps, 1000, nwalkers)
+    Fit = cMCMC.MCMC(start_params, Like, lnprior, 'none', ntemps, 1000, nwalkers)
     chain = Fit.run()
 
 ####---CONSOLIDATING RESULTS

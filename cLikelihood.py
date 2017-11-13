@@ -2,10 +2,7 @@ import numpy as np
 
 # The "foreground" linear likelihood:
 class Likelihood:
-    def __init__(self,_x,_y,_xerr, _lnprior, _Model):
-        self.x = _x
-        self.y = _y
-        self.xerr = _xerr
+    def __init__(self,_lnprior, _Model):
         self.lnprior = _lnprior
         self.Model = _Model
 

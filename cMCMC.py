@@ -14,7 +14,7 @@ class MCMC:
         -Has functions to return the Mixture Model posteriors and Bayes factor
     '''
 
-    def __init__(self, _params, _like, _prior,_start_kdes=0,_ntemps=2,_niter=500, _nwalkers=32):
+    def __init__(self, _params, _like, _prior,_start_kdes='none',_ntemps=2,_niter=500, _nwalkers=32):
         self.niter = _niter
         self.ntemps = _ntemps
         self.nwalkers = _nwalkers
@@ -78,7 +78,7 @@ class MCMC:
         '''Returns the foreground posterior
         '''
         norm = 0.0
-        X = self.like.Model.X
+        X = self.like.Model.x
         fg_pp = np.zeros(len(X.ravel()))
         bg_pp = np.zeros(len(X.ravel()))
 
