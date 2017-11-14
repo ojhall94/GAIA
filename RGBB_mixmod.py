@@ -37,23 +37,24 @@ class cModel:
         self.y = _y
 
     def fg(self, p):
-        b, sigb, _, _, _ = p
-        return -0.5 * ((self.x - b) / sigb)**2 - np.log(sigb)
+        b, sigb, _, _, _, _ = p
+        return -0.5 * (((b - self.x) / sigb)**2 + 2*np.log(sigb) + np.log(2*np.pi))
 
     def bg(self, p):
-        _, _, o, sigo, _ = p
-        val = np.abs(self.x).max() + np.abs(self.x).min()
-
-        xn = self.x + val
-        on = np.abs(o)
-
-        return -np.log(xn) -np.log(sigo) - 0.5 * (np.log(xn) - on)**2/sigo**2
-
-
+        _, _, m, c, sigm, _ = p
+        model = m * x + c
+        return -0.5 * (((model - self.y) / sigm)**2 + 2*np.log(sigm) + np.log(2*np.pi))
+    #
     # def bg(self, p):
-    #     _, _, a, c, sigm, _ = p
-    #     M = a + self.x*c
-    #     return -0.5 * ((self.y - M) / sigm)**2 - np.log(sigm)
+    #     _, _, o, sigo, _ = p
+    #     val = np.abs(self.x).max() + np.abs(self.x).min()
+    #
+    #     xn = self.x + val
+    #     on = np.abs(o)
+    #
+    #     return -np.log(xn) -np.log(sigo) - 0.5 * (np.log(xn) - on)**2/sigo**2
+
+
 
 
 if __name__ == '__main__':
@@ -88,16 +89,16 @@ if __name__ == '__main__':
 
 
     ####---SETTING UP AND RUNNING MCMC
-        labels_mc = ["$b$", r"$\sigma(RC)$", "$o$", r"$\sigma(o)$", "$Q$"]
+        # labels_mc = ["$b$", r"$\sigma(RC)$", "$o$", r"$\sigma(o)$", "$Q$"]
+        # bounds = [(lognuguess-.05, lognuguess+.05,), (0.01,0.05), (0.0,2.0), (0.01, 2.), (0, 1)]
+        # start_params = np.array([lognuguess, 0.02, 0.1, 1.0, 0.5])
+        labels_mc = ["$b$", r"$\sigma(b)$", "$m$", "$c$", r"$\sigma(m)$", "$Q$"]
+        std = np.std(y-(x*f[0]+f[1]))
+        start_params = np.array([lognuguess, 0.02, f[0], f[1], std, 0.5])
+        bounds = [(lognuguess-.05, lognuguess+.05,), (0.01,0.05),\
+                     (f[0]-0.02,f[0]+0.02), (f[1]-0.3,f[1]+0.3), \
+                    (std/5,std*5), (0, 1)]
 
-        # labels_mc = ["$b$", r"$\sigma(b)$", "$a$", "$c$", r"$\sigma(m)$", "$Q$"]
-        # start_params = np.array([lognuguess, 0.02, f[1], f[0], np.std(y), 0.5])
-        # bounds = [(lognuguess-.05, lognuguess+.05,), (0.01,0.05),\
-        #             (f[1]-0.3,f[1]+0.3), (f[0]-0.02,f[0]+0.02), \
-        #             (np.std(y)/5,np.std(y)*5), (0, 1)]
-
-        bounds = [(lognuguess-.05, lognuguess+.05,), (0.01,0.05), (0.0,2.0), (0.01, 2.), (0, 1)]
-        start_params = np.array([lognuguess, 0.02, 0.1, 1.0, 0.5])
 
         Model = cModel(x, y)
         lnprior = cPrior.Prior(bounds)
@@ -159,6 +160,8 @@ if __name__ == '__main__':
         ax.set_ylabel(r"$\nu_{max}$($\mu$Hz)")
         fig.savefig('Output/Saniya_RGBB/comparison_'+US+'.png')
         plt.close('all')
+
+        sys.exit()
 
         df['label'] = ''
         df.label[mask] = 'RGBB'

@@ -137,18 +137,36 @@ if __name__ == '__main__':
             norm += 1
     post_prob /= norm
 
+    fig1, ax1 = plt.subplots()
     # Plot the data points.
-    plt.errorbar(x, y, yerr=yerr, fmt=",k", ms=0, capsize=0, lw=1, zorder=999)
+    ax1.errorbar(x, y, yerr=yerr, fmt=",k", ms=0, capsize=0, lw=1, zorder=999)
     # Plot the (true) outliers.
-    plt.scatter(x[m_bkg], y[m_bkg], marker="s", s=22, c=post_prob[m_bkg], cmap="gray_r", vmin=0, vmax=1, zorder=1000)
+    ax1.scatter(x[m_bkg], y[m_bkg], marker="s", s=22, c=post_prob[m_bkg], cmap="gray_r", vmin=0, vmax=1, zorder=1000)
     # Plot the (true) good points.
-    plt.scatter(x[~m_bkg], y[~m_bkg], marker="o", s=22, c=post_prob[~m_bkg], cmap="gray_r", vmin=0, vmax=1, zorder=1000)
+    ax1.scatter(x[~m_bkg], y[~m_bkg], marker="o", s=22, c=post_prob[~m_bkg], cmap="gray_r", vmin=0, vmax=1, zorder=1000)
 
     # Plot the true line.
-    plt.plot(x0, y0, color="k", lw=1.5)
+    ax1.plot(x0, y0, color="k", lw=1.5)
 
-    plt.xlabel("$x$")
-    plt.ylabel("$y$")
-    plt.ylim(-2.5, 2.5)
-    plt.xlim(-2.1, 2.1)
+    ax1.set_xlabel("$x$")
+    ax1.set_ylabel("$y$")
+    ax1.set_ylim(-2.5, 2.5)
+    ax1.set_xlim(-2.1, 2.1)
+
+    chain = sampler.flatchain
+    print('Plotting results...')
+    npa = chain.shape[1]
+    res = np.zeros(npa)
+    std = np.zeros(npa)
+    for idx in np.arange(npa):
+        res[idx] = np.median(chain[:,idx])
+        std[idx] = np.std(chain[:,idx])
+
+    fg = np.exp(lnlike_fg(res))
+    bg = np.exp(lnlike_bg(res))
+    fig, ax = plt.subplots()
+    # ax.scatter(y[mask],bg[mask], marker='s',c=post_prob[m_bkg], cmap="gray_r", vmin=0, vmax=1)
+    # ax.scatter(y[~mask],bg[~mask], marker='o',c=post_prob[~m_bkg], cmap="gray_r", vmin=0, vmax=1)
+    ax.scatter(y[m_bkg],fg[m_bkg],marker='s',c=post_prob[m_bkg], cmap="gray_r", vmin=0, vmax=1)
+    ax.scatter(y[~m_bkg],fg[~m_bkg],marker='o',c=post_prob[~m_bkg], cmap="gray_r", vmin=0, vmax=1)
     plt.show()
