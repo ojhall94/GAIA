@@ -32,29 +32,22 @@ def get_values(US):
 
 class cModel:
     '''Models for this run.'''
-    def __init__(self, _x, _y):
+    def __init__(self, _x, _y, _amp_offset, _a):
         self.x = _x
         self.y = _y
+        self.amp_offset = _amp_offset
+        self.a = _a
 
     def fg(self, p):
         b, sigb, _, _, _, _ = p
-        return -0.5 * (((b - self.x) / sigb)**2 + 2*np.log(sigb) + np.log(2*np.pi))
+        return -0.5 * (((b - self.x) / sigb)**2 + 2*np.log(sigb))
 
     def bg(self, p):
         _, _, m, c, sigm, _ = p
-        model = m * x + c
-        return -0.5 * (((model - self.y) / sigm)**2 + 2*np.log(sigm) + np.log(2*np.pi))
-    #
-    # def bg(self, p):
-    #     _, _, o, sigo, _ = p
-    #     val = np.abs(self.x).max() + np.abs(self.x).min()
-    #
-    #     xn = self.x + val
-    #     on = np.abs(o)
-    #
-    #     return -np.log(xn) -np.log(sigo) - 0.5 * (np.log(xn) - on)**2/sigo**2
-
-
+        model = m * self.x + c
+        Delta = y - model
+        A = self.a * self.x + self.amp_offset
+        return -0.5 * (((Delta) / sigm)**2 + 2*np.log(sigm)) + np.log(A)
 
 
 if __name__ == '__main__':
@@ -69,6 +62,7 @@ if __name__ == '__main__':
         f = np.polyfit(x, y, 1)
         bins = int(np.sqrt(len(x)))
 
+        '''Plotting the data to be fit to'''
         fig, ax = plt.subplots(2, sharex=True)
         ax[0].scatter(x, y, s=3, label=US+' Undershoot', zorder=1000)
         ax[0].plot(x,f[1] + x*f[0],c='r', label='Polyfit', zorder=999)
@@ -85,28 +79,56 @@ if __name__ == '__main__':
         ax[1].set_xlabel(r"$log_{10}$($\nu_{max}$ ($\mu$Hz))")
         fig.tight_layout()
         fig.savefig('Output/Saniya_RGBB/investigate_US_'+US+'.png')
-        plt.close()
 
+        '''Plotting and calculating the change in distribution amplitude'''
+        fn = f[1] + x*f[0]
+        diff = y - fn
+        scope = np.arange(1., 2.75, 0.25)
+        fig, ax = plt.subplots(2)
+        lo = 0.75
+        i = 0
+        nums = np.ones_like(scope)
+        xes = np.ones_like(scope)
+        for hi in scope:
+            data1 = diff[x > lo]
+            data = data1[x < hi]
+            n, _,_ = ax[0].hist(data,bins=int(np.sqrt(len(data))),histtype='step',label=str(lo)+'-'+str(hi))
+            nums[i] = n.max()
+            xes[i] = np.mean([lo,hi])
+            i += 1
+            lo = hi
+        ax[0].legend(loc='best',fancybox=True)
+        ax[0].set_xlabel(r"$T_{eff}$ - Polyfit")
+        ax[0].set_ylabel('Counts per bin')
 
-    ####---SETTING UP AND RUNNING MCMC
-        # labels_mc = ["$b$", r"$\sigma(RC)$", "$o$", r"$\sigma(o)$", "$Q$"]
-        # bounds = [(lognuguess-.05, lognuguess+.05,), (0.01,0.05), (0.0,2.0), (0.01, 2.), (0, 1)]
-        # start_params = np.array([lognuguess, 0.02, 0.1, 1.0, 0.5])
-        labels_mc = ["$b$", r"$\sigma(b)$", "$m$", "$c$", r"$\sigma(m)$", "$Q$"]
-        std = np.std(y-(x*f[0]+f[1]))
+        l = np.polyfit(xes, nums, 1)
+        ax[1].scatter(xes,nums)
+        ax[1].plot(xes,xes*l[0]+l[1],label='Polyfit')
+        ax[1].plot(xes,xes*l[0]*1.5+l[1],label='Upper Limit')
+        ax[1].plot(xes,xes*l[0]*0.5+l[1], label='Lower Limit')
+        ax[1].legend(loc='best',fancybox=True)
+        ax[1].set_xlabel(r"$\nu_{max}$")
+        ax[1].set_ylabel(r"Distribution Amplitude")
+        fig.tight_layout()
+        fig.savefig('Output/Saniya_RGBB/amplitude_US_'+US+'.png')
+        plt.close('all')
+
+####---SETTING UP AND RUNNING MCMC
+        labels_mc = ["$b$", r"$\sigma(b)$", "$m$", "$c$", r"$\sigma(m)$","$Q$"]
+        std = np.std(diff)
         start_params = np.array([lognuguess, 0.02, f[0], f[1], std, 0.5])
         bounds = [(lognuguess-.05, lognuguess+.05,), (0.01,0.05),\
-                     (f[0]-0.02,f[0]+0.02), (f[1]-0.3,f[1]+0.3), \
-                    (std/5,std*5), (0, 1)]
+                    (f[0]-0.02,f[0]+0.02), (f[1]-0.3,f[1]+0.3), \
+                    (std*0.5,std*1.5), (0,1)]#(l[0]*0.5, l[0]*1.5),
+                    # (0, 1)]
 
-
-        Model = cModel(x, y)
+        Model = cModel(x, y, l[1], l[0])
         lnprior = cPrior.Prior(bounds)
         Like = cLikelihood.Likelihood(lnprior,Model)
 
-        ntemps, nwalkers = 2, 32
+        ntemps, nwalkers = 4, 32
 
-        Fit = cMCMC.MCMC(start_params, Like, lnprior, 'none', ntemps, 500, nwalkers)
+        Fit = cMCMC.MCMC(start_params, Like, lnprior, 'none', ntemps, 1000, nwalkers)
         chain = Fit.run()
 
     ####---CONSOLIDATING RESULTS
@@ -128,25 +150,34 @@ if __name__ == '__main__':
             std[idx] = np.std(chain[:,idx])
 
         fig, ax = plt.subplots(2, sharex=True)
-        ax[0].scatter(x, y, s=5, c=fg_pp, cmap='Blues_r', vmin=0, vmax=1, zorder=1000)
-        # ax[0].plot(x,res[2]+res[3]*x,c='r',zorder=1001,label='MCMC BG Fit')
+        pos = ax[0].scatter(x, y, s=5, c=fg_pp, cmap='Blues_r', vmin=0, vmax=1, zorder=1000,label='US'+str(US))
+        fig.colorbar(pos,ax=ax[0],label='Foreground Posterior Probability')
+        ax[0].plot(x,res[2]*x+res[3],c='r',zorder=1001,label='MCMC BG Fit')
         ax[0].set_title('Synthetic Pop. for undershoot efficiencey of '+US)
         ax[0].set_ylabel(r"$log_{10}$($T_{eff}$ (K))")
+        ax[0].axvline(res[0],linestyle='--',c='r',label=r"RGBB location")
         ax[0].legend(loc='best',fancybox=True)
-        ax[0].axvline(res[0],c='r',label=r"$RGBB location")
 
-        fg_m = np.exp(Model.fg(res))
-        bg_m = np.exp(Model.bg(res))
-        weights = np.ones_like(x)/float(len(x))
-        hy, _, _ = ax[1].hist(x, weights = weights, bins=bins, color ='k', histtype='step')
-        ax[1].scatter(x,fg_m/fg_m.max()*hy.max(),c='cornflowerblue',alpha=.5,label='FG',s=5)
-        ax[1].scatter(x,bg_m/fg_m.max()*hy.max(),c='orange',alpha=.5,label='BG',s=5)
-        ax[1].axvline(res[0],c='r',label=r"$RGBB location")
+        fg_m = np.exp(Like.lnlike_fg(res))
+        bg_m = np.exp(Like.lnlike_bg(res))
+        # weights = np.ones_like(x)/float(len(x))
+        hy, _, _ = ax[1].hist(x, bins=bins, color ='k', histtype='step')
+        ax2 = ax[1].twinx()
+        ax2.scatter(x,fg_m, c='cornflowerblue',alpha=.5,label='FG',s=5)
+        ax2.scatter(x,bg_m, c='orange',alpha=.5,label='BG',s=5)
+        ax[1].axvline(res[0],linestyle='--',c='r',label=r"$RGBB location")
         ax[1].set_title(r"Histogram in $log_{10}$($\nu_{max}$)")
         ax[1].set_xlabel(r"$log_{10}$($\nu_{max}$ ($\mu$Hz))")
+        ax[1].set_ylabel('Counts')
+        ax2.set_ylabel('Normalised Probability')
+        ax2.set_ylim(0.,0.010)
+        ax[1].legend(loc='best',fancybox=True)
         fig.tight_layout()
         fig.savefig('Output/Saniya_RGBB/results_'+US+'.png')
+        plt.show()
         plt.close()
+        # ax[1].scatter(x,fg_m/fg_m.max()*hy.max(),c='cornflowerblue',alpha=.5,label='FG',s=5)
+        # ax[1].scatter(x,bg_m/bg_m.max()*hy.max(),c='orange',alpha=.5,label='BG',s=5)
 
         fig, ax = plt.subplots()
         ax.scatter(df.Teff[mask], df.numax[mask], c='y', s=3, label='RGBB Stars')
@@ -161,7 +192,37 @@ if __name__ == '__main__':
         fig.savefig('Output/Saniya_RGBB/comparison_'+US+'.png')
         plt.close('all')
 
-        sys.exit()
+
+        '''Plotting the straight line fit probabilities'''
+        fn = f[1] + x*f[0]
+        diff = y - fn
+        stdd = np.std(diff)
+        bg = np.exp(Like.lnlike_bg(res))
+        bg = np.exp(Model.bg(res))
+        scope = np.arange(1., 2.75, 0.25)
+        lo = 0.75
+        i = 0
+
+        fig, ax = plt.subplots(2,sharex=True)
+        for hi in scope:
+            data = diff[x > lo]
+            data = data[x < hi]
+            dbg = bg[x > lo]
+            dbg = dbg[x < hi]
+            stdd = np.std(data)
+
+            n, _,_ = ax[0].hist(data,bins=int(np.sqrt(len(data))),histtype='step',label=str(lo)+'-'+str(hi))
+            ax[1].scatter(data, dbg, s=5, label=str(lo)+'-'+str(hi))
+
+            lo = hi
+        ax[0].legend(loc='best',fancybox=True)
+        ax[1].legend(loc='best',fancybox=True)
+        ax[1].set_xlabel(r"$T_{eff}$ - Straight Line Fit")
+        ax[0].set_ylabel('Counts per bin')
+        ax[1].set_ylabel(r"Background Probability")
+        fig.tight_layout()
+        fig.savefig('Output/Saniya_RGBB/results_fg_'+US+'.png')
+        plt.close('all')
 
         df['label'] = ''
         df.label[mask] = 'RGBB'

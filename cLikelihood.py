@@ -7,11 +7,15 @@ class Likelihood:
         self.Model = _Model
 
     def lnlike_fg(self, p):
-        return self.Model.fg(p)
+        regmod = np.exp(self.Model.fg(p))
+        corrmod = regmod / np.sum(regmod)
+        return np.log(corrmod)
 
 # The "background" outlier likelihood:
     def lnlike_bg(self, p):
-        return self.Model.bg(p)
+        regmod = np.exp(self.Model.bg(p))
+        corrmod = regmod / np.sum(regmod)
+        return np.log(corrmod)
 
 # Full probabilistic model.
     def lnprob(self, p):
