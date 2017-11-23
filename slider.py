@@ -76,7 +76,9 @@ if __name__ == "__main__":
     '''Initiate sliders'''
     Sfig, Sax = plt.subplots()
     Sfig.subplots_adjust(bottom=0.45)
-    h = Sax.hist(x,histtype='step',color='k',bins=int(np.sqrt(len(x))))
+    hist, bins = np.histogram(x,bins=int(np.sqrt(len(x))))
+    b = Sax.bar(bins[:-1],hist,color='k')
+    # _,_,h = Sax.hist(x,histtype='step',color='k',bins=int(np.sqrt(len(x))))
     Sax.set_xlabel(r"$M_{Ks}$")
     Sax.set_ylabel('Counts')
     Sax.set_title(r"Histogram in Absolute Magnitude for TRILGAL sample")
@@ -102,8 +104,13 @@ if __name__ == "__main__":
         uu = np.vstack(U.get_update(loggmin, loggmax, zmin, zmax))
         l.set_offsets(uu.T)
         m.set_offsets(uu.T)
-        Sax.cla()
-        Sax.hist(uu[0],histtype='step',color='k',bins=int(np.sqrt(len(uu[0]))))
+        hist, bins = np.histogram(uu[0],bins=int(np.sqrt(len(uu[0]))))
+        [bar.set_height(hist[i]) for i, bar in enumerate(b)]
+        [bar.set_x(bins[i]) for i, bar in enumerate(b)]
+        Sax.relim()
+        Sax.autoscale_view()
+        # Sax.cla()
+        # Sax.hist(uu[0],histtype='step',color='k',bins=int(np.sqrt(len(uu[0]))))
 
         l.set_clim([loggmin,loggmax])
         m.set_clim([zmin,zmax])
