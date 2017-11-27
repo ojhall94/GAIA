@@ -37,12 +37,19 @@ def save(event):
 
     Lfig.savefig('../Cuts_Data/cut_losses_'+str(date.year)+str(date.month)+str(date.day)+'.png')
 
+    plt.close('all')
+
 class cUpdate:
-    def __init__(self,_dff):
+    def __init__(self,_dff, _odf):
         self.dff = _dff
+        self.odf = _odf
 
     def get_update(self,loggmin, loggmax, zmin, zmax, cmin, cmax, save=False):
         out = self.dff[dff.logg < loggmax]
+
+        if save:
+            out = self.odf[odf.logg < loggmax]
+
         out = out[out.logg > loggmin]
         out = out[out['[M/H]'] < zmax]
         out = out[out['[M/H]'] > zmin]
@@ -90,6 +97,8 @@ def update(val):
     RGB_n.set_text('Total after cut: '+str(ss[1]))
     RGB_p.set_text('Remaining: '+str(ss[1]*100/rgb_total)+r"\%")
     ALT_n.set_text('Total after cut: '+str(ss[2]))
+    ALT_p.set_text('Remaining: '+str(ss[2]*100/alt_total)+r"\%")
+
 
     '''Draw Plots'''
     Lfig.canvas.draw_idle()
@@ -100,28 +109,27 @@ def update(val):
 
 '''TODO:
 -Add cuts to text plot
--Force save of full dataset
 '''
 
 if __name__ == "__main__":
     plt.close('all')
     sfile = glob.glob('Repo_Data/*all*.txt')[0]
-    dff = pd.read_csv(sfile, sep='\s+')
+    odf = pd.read_csv(sfile, sep='\s+')
 
     '''Correct data'''
-    dff['Aks'] = 0.114*dff.Av
-    dff['M_ks'] = dff.Ks - dff['m-M0'] - dff.Aks
-    dff['JKs'] = dff.J - dff.Ks
+    odf['Aks'] = 0.114*odf.Av
+    odf['M_ks'] = odf.Ks - odf['m-M0'] - odf.Aks
+    odf['JKs'] = odf.J - odf.Ks
 
     '''Set first order cuts on data'''
-    dff = dff[dff.M_ks < -0.5]
-    dff = dff[dff.M_ks > -2.5]
-    dff = dff[dff.Ks < 15.]
-    dff = dff[dff.Ks > 6.]
-    dff = dff[0:8000]
+    odf = odf[odf.M_ks < -0.5]
+    odf = odf[odf.M_ks > -2.5]
+    odf = odf[odf.Ks < 15.]
+    odf = odf[odf.Ks > 6.]
+    dff = odf[0:8000]
 
     '''Load in first order data'''
-    U = cUpdate(dff)
+    U = cUpdate(dff, odf)
 
     '''Set second order cuts on data'''
     loggmaxvalinit = dff.logg.max()
@@ -149,6 +157,7 @@ if __name__ == "__main__":
 
     rc_perc = rc_init*100/rc_total
     rgb_perc = rgb_init*100/rgb_total
+    alt_perc = alt_init*100/alt_total
 
     Lfig, Lax = plt.subplots(figsize=(2,4.5))
     Lax.get_xaxis().set_visible(False)
@@ -156,6 +165,8 @@ if __name__ == "__main__":
 
     rc_txt = 'Remaining: '+str(rc_perc)+r"\%"
     rgb_txt = 'Remaining: '+str(rgb_perc)+r"\%"
+    alt_txt = 'Remaining: '+str(alt_perc)+r"\%"
+
     Lax.text(0.1, 0.9, b'Red Clump Stars:', color='red')
     Lax.text(0.1, 0.85, 'Initial total: '+str(rc_total))
     RC_n = Lax.text(0.1, 0.80, 'Total after cut: '+str(rc_init))
@@ -169,6 +180,9 @@ if __name__ == "__main__":
     Lax.text(0.1, 0.30, b'Other types:', color='red')
     Lax.text(0.1, 0.25, 'Initial total: '+str(alt_total))
     ALT_n = Lax.text(0.1, 0.20, 'Total after cut: '+str(alt_init))
+    ALT_p = Lax.text(0.1, 0.15, alt_txt)
+
+    Lax.text(0.1, 0.05, 'Total Stars: '+str(len(dff)))
 
     '''Define plottable variables of first subsample'''
     x = init.M_ks
