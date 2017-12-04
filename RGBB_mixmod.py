@@ -16,6 +16,8 @@ import matplotlib.pyplot as plt
 matplotlib.rcParams['xtick.direction'] = 'out'
 matplotlib.rcParams['ytick.direction'] = 'out'
 
+import scipy.stats as stats
+
 import cPrior
 import cLikelihood
 import cMCMC
@@ -28,7 +30,7 @@ def get_values(US):
     df['logg'] = np.log10(df.g)
     df['lognumax'] = np.log10(df.numax)
     df = df.sort_values(by=['numax'])
-    return df.lognumax, df.logT, df
+    return df.lognumax, df.Teff, df
 
 class cModel:
     '''Models for this run.'''
@@ -60,6 +62,7 @@ if __name__ == '__main__':
 
         '''Estimate background parameters in log space'''
         f = np.polyfit(x, y, 1)
+        fn = f[1] + x*f[0]
         bins = int(np.sqrt(len(x)))
 
         '''Plotting the data to be fit to'''
@@ -78,10 +81,69 @@ if __name__ == '__main__':
         ax[1].set_title(r"Histogram in $log_{10}$($\nu_{max}$)")
         ax[1].set_xlabel(r"$log_{10}$($\nu_{max}$ ($\mu$Hz))")
         fig.tight_layout()
+        plt.show()
         fig.savefig('Output/Saniya_RGBB/investigate_US_'+US+'.png')
+        plt.close('all')
+
+        '''Getting distribution visualisation with KDE'''
+        fn = f[1] + x*f[0]
+        D = y - fn
+
+        #Getting the KDE of the 2D distribution
+        Dxxyy = np.ones([len(x),2])
+        Dxxyy[:,0] = x
+        Dxxyy[:,1] = D
+        Dkde = stats.gaussian_kde(Dxxyy.T)
+
+        #Setting up a 2D meshgrid
+        size = 200
+        Dxx = np.linspace(x.min(),x.max(),size)
+        Dyy = np.linspace(D.min(),D.max(),size)
+        DX, DY  = np.meshgrid(Dxx, Dyy)
+        Dd = np.ones([size, size])
+
+        #Calculating the KDE value for each point on the grid
+        for idx, i in tqdm(enumerate(Dxx)):
+            for jdx, j in enumerate(Dyy):
+                Dd[jdx, idx] = Dkde([i,j])
+
+        '''Plotting residuals with histograms'''
+        left, bottom, width, height = 0.1, 0.35, 0.65, 0.60
+        fig = plt.figure(1, figsize=(10,10))
+        sax = fig.add_axes([left, bottom, width, height])
+        yax = fig.add_axes([left+width+0.02, bottom, 0.2, height])
+        xax = fig.add_axes([left, 0.1, width, 0.22], sharex=sax)
+        sax.xaxis.set_visible(False)
+        yax.set_yticklabels([])
+        xax.grid()
+        xax.set_axisbelow(True)
+        yax.grid()
+        yax.set_axisbelow(True)
+
+        fig.suptitle('KDE of RGBB residuals to straight line polyfit, US '+US)
+
+        sax.hist2d(Dxxyy[:,0],Dxxyy[:,1],bins=np.sqrt(len(x)))
+        sax.contour(DX,DY,Dd)
+        sax.axhline(0.,c='r',label='Polyfit',zorder=1001)
+        sax.legend(loc='best',fancybox=True)
+
+        yax.hist(D,bins=int(np.sqrt(len(D))),histtype='step',orientation='horizontal')
+        yax.set_ylim(sax.get_ylim())
+        xax.hist(x,bins=int(np.sqrt(len(x))),histtype='step')
+
+        sax.set_ylabel(r"$T_{eff}$ - Straight Line Model")
+        xax.set_xlabel(r"$log_{10}()\nu_{max})$")
+        fig.savefig('Output/Saniya_RGBB/KDE_visual_'+US+'.png')
+
+        plt.show()
+
+
+        plt.show()
+        sys.exit()
+
+
 
         '''Plotting and calculating the change in distribution amplitude'''
-        fn = f[1] + x*f[0]
         diff = y - fn
         scope = np.arange(1., 2.75, 0.25)
         fig, ax = plt.subplots(2)
@@ -228,6 +290,7 @@ if __name__ == '__main__':
         df.label[mask] = 'RGBB'
         df.label[~mask] = 'RGB'
 
+        sys.exit()
         out = glob.glob('../data/Saniya_RGBB/*'+US+'.*')[0]
 
         header = "#Generated synthetic population: 1000 stars\n\
