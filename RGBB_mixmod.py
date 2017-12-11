@@ -30,26 +30,43 @@ def get_values(US):
     df['logg'] = np.log10(df.g)
     df['lognumax'] = np.log10(df.numax)
     df = df.sort_values(by=['numax'])
-    return df.lognumax, df.Teff, df
+    return df.lognumax, df.logT, df
 
 class cModel:
     '''Models for this run.'''
-    def __init__(self, _x, _y, _amp_offset, _a):
+    def __init__(self, _x, _y):
         self.x = _x
         self.y = _y
-        self.amp_offset = _amp_offset
-        self.a = _a
 
-    def fg(self, p):
-        b, sigb, _, _, _, _ = p
-        return -0.5 * (((b - self.x) / sigb)**2 + 2*np.log(sigb))
+    def prob_y(self, p):
+        _, _, m, c, sigm, _, _ = p
+        #Calculating the likelihood in the Y direction
+        model = m * self.x + c
+        lnLy = -0.5 * (((y - model) / sigm)**2 + 2*np.log(sigm) +np.log(2*np.pi))
+        return lnLy
+
+    def fg_x(self, p):
+        b, sigb, _, _, _, _, _ = p
+
+        #Calculating the likelihood in the X direction
+        lnLx = -0.5 * (((b - self.x) / sigb)**2 + 2*np.log(sigb) +np.log(2*np.pi))
+        return lnLx
+
+    def bg_x(self, p):
+        _, _, _, _, _, lambd, _ = p
+
+        #Calculating the likelihood in the X direction
+        A = lambd * (np.exp(lambd*x.max()) - np.exp(lambd*x.min()))**-1
+        lnLx = np.log(A) + lambd*x
+        return lnLx
 
     def bg(self, p):
-        _, _, m, c, sigm, _ = p
-        model = m * self.x + c
-        Delta = y - model
-        A = self.a * self.x + self.amp_offset
-        return -0.5 * (((Delta) / sigm)**2 + 2*np.log(sigm)) + np.log(A)
+        bg =  self.prob_y(p) + self.bg_x(p)
+        return bg
+
+    def fg(self, p):
+        fg = self.prob_y(p) + self.fg_x(p)
+        return fg
 
 
 if __name__ == '__main__':
@@ -58,14 +75,13 @@ if __name__ == '__main__':
     '''Under: 0.00, 0.025, 0.02, 0.04'''
     for US in ('0.00','0.025','0.02','0.04'):
         x, y, df = get_values(US)
-        print('WARNING: ALL DATA IN LOG BASE 10')
 
-        '''Estimate background parameters in log space'''
+        #Estimate background parameters in log space
         f = np.polyfit(x, y, 1)
         fn = f[1] + x*f[0]
         bins = int(np.sqrt(len(x)))
 
-        '''Plotting the data to be fit to'''
+        #Plotting the data to be fit to
         fig, ax = plt.subplots(2, sharex=True)
         ax[0].scatter(x, y, s=3, label=US+' Undershoot', zorder=1000)
         ax[0].plot(x,f[1] + x*f[0],c='r', label='Polyfit', zorder=999)
@@ -81,14 +97,26 @@ if __name__ == '__main__':
         ax[1].set_title(r"Histogram in $log_{10}$($\nu_{max}$)")
         ax[1].set_xlabel(r"$log_{10}$($\nu_{max}$ ($\mu$Hz))")
         fig.tight_layout()
-        plt.show()
         fig.savefig('Output/Saniya_RGBB/investigate_US_'+US+'.png')
         plt.close('all')
 
-        '''Getting distribution visualisation with KDE'''
+        #Getting distribution visualisation with KDE
         fn = f[1] + x*f[0]
         D = y - fn
 
+
+####---SETTING UP MCMC
+        labels_mc = ["$b$", r"$\sigma(b)$", "$m$", "$c$", r"$\sigma(m)$", r"$\lambda$","$Q$"]
+        std = np.std(D)
+        start_params = np.array([lognuguess, 0.02, f[0], f[1], std, 1.8, 0.5])
+        bounds = [(lognuguess-.05, lognuguess+.05,), (0.01,0.03),\
+                    (f[0]-0.02,f[0]+0.02), (f[1]-0.3,f[1]+0.3), \
+                    (std*0.5,std*1.5), (1.4, 2.2), (0,1)]
+        Model = cModel(x, y)
+        lnprior = cPrior.Prior(bounds)
+        Like = cLikelihood.Likelihood(lnprior,Model)
+
+####---CHECKING MODELS BEFORE RUN
         #Getting the KDE of the 2D distribution
         Dxxyy = np.ones([len(x),2])
         Dxxyy[:,0] = x
@@ -107,7 +135,7 @@ if __name__ == '__main__':
             for jdx, j in enumerate(Dyy):
                 Dd[jdx, idx] = Dkde([i,j])
 
-        '''Plotting residuals with histograms'''
+        #Plotting residuals with histograms
         left, bottom, width, height = 0.1, 0.35, 0.65, 0.60
         fig = plt.figure(1, figsize=(10,10))
         sax = fig.add_axes([left, bottom, width, height])
@@ -127,67 +155,21 @@ if __name__ == '__main__':
         sax.axhline(0.,c='r',label='Polyfit',zorder=1001)
         sax.legend(loc='best',fancybox=True)
 
-        yax.hist(D,bins=int(np.sqrt(len(D))),histtype='step',orientation='horizontal')
+        yax.hist(D,bins=int(np.sqrt(len(D))),histtype='step',orientation='horizontal', normed=True)
+        yax.scatter(np.exp(Model.prob_y(start_params)), D,c='orange')
         yax.set_ylim(sax.get_ylim())
-        xax.hist(x,bins=int(np.sqrt(len(x))),histtype='step')
 
-        sax.set_ylabel(r"$T_{eff}$ - Straight Line Model")
-        xax.set_xlabel(r"$log_{10}()\nu_{max})$")
+        xax.hist(x,bins=int(np.sqrt(len(x))),histtype='step',normed=True)
+        xax.scatter(x,np.exp(Model.bg_x(start_params)),c='orange')
+        xax.scatter(x,np.exp(Model.fg_x(start_params)),c='cornflowerblue')
+
+        sax.set_ylabel(r"$log_{10}(T_{eff})$ - Straight Line Model")
+        xax.set_xlabel(r"$log_{10}(\nu_{max})$")
         fig.savefig('Output/Saniya_RGBB/KDE_visual_'+US+'.png')
-
         plt.show()
-
-
-        plt.show()
-        sys.exit()
-
-
-
-        '''Plotting and calculating the change in distribution amplitude'''
-        diff = y - fn
-        scope = np.arange(1., 2.75, 0.25)
-        fig, ax = plt.subplots(2)
-        lo = 0.75
-        i = 0
-        nums = np.ones_like(scope)
-        xes = np.ones_like(scope)
-        for hi in scope:
-            data1 = diff[x > lo]
-            data = data1[x < hi]
-            n, _,_ = ax[0].hist(data,bins=int(np.sqrt(len(data))),histtype='step',label=str(lo)+'-'+str(hi))
-            nums[i] = n.max()
-            xes[i] = np.mean([lo,hi])
-            i += 1
-            lo = hi
-        ax[0].legend(loc='best',fancybox=True)
-        ax[0].set_xlabel(r"$T_{eff}$ - Polyfit")
-        ax[0].set_ylabel('Counts per bin')
-
-        l = np.polyfit(xes, nums, 1)
-        ax[1].scatter(xes,nums)
-        ax[1].plot(xes,xes*l[0]+l[1],label='Polyfit')
-        ax[1].plot(xes,xes*l[0]*1.5+l[1],label='Upper Limit')
-        ax[1].plot(xes,xes*l[0]*0.5+l[1], label='Lower Limit')
-        ax[1].legend(loc='best',fancybox=True)
-        ax[1].set_xlabel(r"$\nu_{max}$")
-        ax[1].set_ylabel(r"Distribution Amplitude")
-        fig.tight_layout()
-        fig.savefig('Output/Saniya_RGBB/amplitude_US_'+US+'.png')
         plt.close('all')
 
-####---SETTING UP AND RUNNING MCMC
-        labels_mc = ["$b$", r"$\sigma(b)$", "$m$", "$c$", r"$\sigma(m)$","$Q$"]
-        std = np.std(diff)
-        start_params = np.array([lognuguess, 0.02, f[0], f[1], std, 0.5])
-        bounds = [(lognuguess-.05, lognuguess+.05,), (0.01,0.05),\
-                    (f[0]-0.02,f[0]+0.02), (f[1]-0.3,f[1]+0.3), \
-                    (std*0.5,std*1.5), (0,1)]#(l[0]*0.5, l[0]*1.5),
-                    # (0, 1)]
-
-        Model = cModel(x, y, l[1], l[0])
-        lnprior = cPrior.Prior(bounds)
-        Like = cLikelihood.Likelihood(lnprior,Model)
-
+####---RUNNING MCMC
         ntemps, nwalkers = 4, 32
 
         Fit = cMCMC.MCMC(start_params, Like, lnprior, 'none', ntemps, 1000, nwalkers)
@@ -211,36 +193,45 @@ if __name__ == '__main__':
             res[idx] = np.median(chain[:,idx])
             std[idx] = np.std(chain[:,idx])
 
-        fig, ax = plt.subplots(2, sharex=True)
-        pos = ax[0].scatter(x, y, s=5, c=fg_pp, cmap='Blues_r', vmin=0, vmax=1, zorder=1000,label='US'+str(US))
-        fig.colorbar(pos,ax=ax[0],label='Foreground Posterior Probability')
-        ax[0].plot(x,res[2]*x+res[3],c='r',zorder=1001,label='MCMC BG Fit')
-        ax[0].set_title('Synthetic Pop. for undershoot efficiencey of '+US)
-        ax[0].set_ylabel(r"$log_{10}$($T_{eff}$ (K))")
-        ax[0].axvline(res[0],linestyle='--',c='r',label=r"RGBB location")
-        ax[0].legend(loc='best',fancybox=True)
+        #Plotting residuals with histograms
+        left, bottom, width, height = 0.1, 0.35, 0.65, 0.60
+        fig = plt.figure(1, figsize=(10,10))
+        sax = fig.add_axes([left, bottom, width, height])
+        yax = fig.add_axes([left+width+0.02, bottom, 0.2, height])
+        xax = fig.add_axes([left, 0.1, width, 0.22], sharex=sax)
+        sax.xaxis.set_visible(False)
+        yax.set_yticklabels([])
+        xax.grid()
+        xax.set_axisbelow(True)
+        yax.grid()
+        yax.set_axisbelow(True)
 
-        fg_m = np.exp(Like.lnlike_fg(res))
-        bg_m = np.exp(Like.lnlike_bg(res))
-        # weights = np.ones_like(x)/float(len(x))
-        hy, _, _ = ax[1].hist(x, bins=bins, color ='k', histtype='step')
-        ax2 = ax[1].twinx()
-        ax2.scatter(x,fg_m, c='cornflowerblue',alpha=.5,label='FG',s=5)
-        ax2.scatter(x,bg_m, c='orange',alpha=.5,label='BG',s=5)
-        ax[1].axvline(res[0],linestyle='--',c='r',label=r"$RGBB location")
-        ax[1].set_title(r"Histogram in $log_{10}$($\nu_{max}$)")
-        ax[1].set_xlabel(r"$log_{10}$($\nu_{max}$ ($\mu$Hz))")
-        ax[1].set_ylabel('Counts')
-        ax2.set_ylabel('Normalised Probability')
-        ax2.set_ylim(0.,0.010)
-        ax[1].legend(loc='best',fancybox=True)
-        fig.tight_layout()
-        fig.savefig('Output/Saniya_RGBB/results_'+US+'.png')
+        fig.suptitle('Resulting probability distributions, US '+US)
+
+        fn = res[2]*x + res[3]
+        Dr = y - fn
+        sax.scatter(x, Dr, c=fg_pp,cmap='Blues_r',label=US)
+        sax.axhline(0.,c='r',label='Straight line fit',zorder=1001)
+        sax.legend(loc='best',fancybox=True)
+
+        yax.hist(Dr,bins=int(np.sqrt(len(Dr))),histtype='step',orientation='horizontal', normed=True)
+        yax.scatter(np.exp(Model.prob_y(res)), Dr,c='orange')
+        yax.set_ylim(sax.get_ylim())
+
+        xax.hist(x,bins=int(np.sqrt(len(x))),histtype='step',normed=True)
+        xax.scatter(x,np.exp(Model.bg_x(res)),c='orange')
+        xax.scatter(x,np.exp(Model.fg_x(res)),c='cornflowerblue')
+
+        sax.set_ylabel(r"$log_{10}(T_{eff})$ - Straight Line Model")
+        xax.set_xlabel(r"$log_{10}(\nu_{max})$")
+        fig.savefig('Output/Saniya_RGBB/result_'+US+'.png')
         plt.show()
-        plt.close()
-        # ax[1].scatter(x,fg_m/fg_m.max()*hy.max(),c='cornflowerblue',alpha=.5,label='FG',s=5)
-        # ax[1].scatter(x,bg_m/bg_m.max()*hy.max(),c='orange',alpha=.5,label='BG',s=5)
+        plt.close('all')
 
+
+
+
+        #Plotting identified RGBB stars
         fig, ax = plt.subplots()
         ax.scatter(df.Teff[mask], df.numax[mask], c='y', s=3, label='RGBB Stars')
         ax.scatter(df.Teff[~mask], df.numax[~mask], c='g', s=3, label='RGB Stars')
@@ -255,37 +246,7 @@ if __name__ == '__main__':
         plt.close('all')
 
 
-        '''Plotting the straight line fit probabilities'''
-        fn = f[1] + x*f[0]
-        diff = y - fn
-        stdd = np.std(diff)
-        bg = np.exp(Like.lnlike_bg(res))
-        bg = np.exp(Model.bg(res))
-        scope = np.arange(1., 2.75, 0.25)
-        lo = 0.75
-        i = 0
-
-        fig, ax = plt.subplots(2,sharex=True)
-        for hi in scope:
-            data = diff[x > lo]
-            data = data[x < hi]
-            dbg = bg[x > lo]
-            dbg = dbg[x < hi]
-            stdd = np.std(data)
-
-            n, _,_ = ax[0].hist(data,bins=int(np.sqrt(len(data))),histtype='step',label=str(lo)+'-'+str(hi))
-            ax[1].scatter(data, dbg, s=5, label=str(lo)+'-'+str(hi))
-
-            lo = hi
-        ax[0].legend(loc='best',fancybox=True)
-        ax[1].legend(loc='best',fancybox=True)
-        ax[1].set_xlabel(r"$T_{eff}$ - Straight Line Fit")
-        ax[0].set_ylabel('Counts per bin')
-        ax[1].set_ylabel(r"Background Probability")
-        fig.tight_layout()
-        fig.savefig('Output/Saniya_RGBB/results_fg_'+US+'.png')
-        plt.close('all')
-
+        #Saving out the data with new labels
         df['label'] = ''
         df.label[mask] = 'RGBB'
         df.label[~mask] = 'RGB'

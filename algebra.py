@@ -12,10 +12,6 @@ if __name__ == '__main__':
     p = np.array([4.60535762e+02, 3.92085724e+03, 6.98355734e+01 , 1.])
 
 
-    fig, ax = plt.subplots()
-    plt.show()
-    sys.exit()
-
     init_printing(use_unicode=False, wrap_line=False, no_global=True)
     x, y, c, m, lam, sig = symbols(['x', 'y', 'c', 'm','lam', 'sig'])
 
@@ -26,7 +22,7 @@ if __name__ == '__main__':
     # A = 1/Intx(p[-1])
 
     fn = -0.5*((y - c - m*x)/sig)**2
-    Ii = integrate(exp(fn), (x,-oo,oo), (y,-oo,oo))
+    Ii = integrate(exp(fn), (x,0,oo), (y,0,oo))
     # Iy = integrate(exp(fn), (x,xlo,xhi), (y,ylo,yhi))
 
     print(I)
