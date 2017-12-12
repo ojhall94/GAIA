@@ -38,13 +38,6 @@ class cModel:
         self.x = _x
         self.y = _y
 
-    # def prob_y(self, p):
-    #     _, _, m, c, sigm, _, _ = p
-    #     #Calculating the likelihood in the Y direction
-    #     model = m * self.x + c
-    #     lnLy = -0.5 * (((y - model) / sigm)**2 + 2*np.log(sigm) +np.log(2*np.pi))
-    #     return lnLy
-
     def fg_x(self, p):
         b, sigb, _, _ = p
 
@@ -76,15 +69,11 @@ if __name__ == '__main__':
     for US in ('0.00','0.025','0.02','0.04'):
         x, y, df = get_values(US)
 
-        #Estimate background parameters in log space
-        f = np.polyfit(x, y, 1)
-        fn = f[1] + x*f[0]
         bins = int(np.sqrt(len(x)))
 
         #Plotting the data to be fit to
         fig, ax = plt.subplots(2, sharex=True)
         ax[0].scatter(x, y, s=3, label=US+' Undershoot', zorder=1000)
-        ax[0].plot(x,f[1] + x*f[0],c='r', label='Polyfit', zorder=999)
         ax[0].set_title('Synthetic Pop. for undershoot efficiencey of '+US)
         ax[0].set_ylabel(r"$log_{10}$($T_{eff}$ (K))")
         ax[0].legend(loc='best',fancybox=True)
@@ -100,14 +89,8 @@ if __name__ == '__main__':
         fig.savefig('Output/Saniya_RGBB/investigate_US_'+US+'.png')
         plt.close('all')
 
-        #Getting distribution visualisation with KDE
-        fn = f[1] + x*f[0]
-        D = y - fn
-
-
 ####---SETTING UP MCMC
         labels_mc = ["$b$", r"$\sigma(b)$", r"$\lambda$","$Q$"]
-        std = np.std(D)
         start_params = np.array([lognuguess, 0.02, 1.8, 0.5])
         bounds = [(lognuguess-.05, lognuguess+.05,), (0.01,0.05),\
                     (1.4, 2.2), (0,1)]
@@ -117,55 +100,46 @@ if __name__ == '__main__':
 
 ####---CHECKING MODELS BEFORE RUN
         #Getting the KDE of the 2D distribution
-        Dxxyy = np.ones([len(x),2])
-        Dxxyy[:,0] = x
-        Dxxyy[:,1] = D
-        Dkde = stats.gaussian_kde(Dxxyy.T)
+        xxyy = np.ones([len(x),2])
+        xxyy[:,0] = x
+        xxyy[:,1] = y
+        kde = stats.gaussian_kde(xxyy.T)
 
         #Setting up a 2D meshgrid
         size = 200
-        Dxx = np.linspace(x.min(),x.max(),size)
-        Dyy = np.linspace(D.min(),D.max(),size)
-        DX, DY  = np.meshgrid(Dxx, Dyy)
-        Dd = np.ones([size, size])
+        xx = np.linspace(x.min(),x.max(),size)
+        yy = np.linspace(y.min(),y.max(),size)
+        X, Y  = np.meshgrid(xx, yy)
+        d = np.ones([size, size])
 
         #Calculating the KDE value for each point on the grid
-        for idx, i in tqdm(enumerate(Dxx)):
-            for jdx, j in enumerate(Dyy):
-                Dd[jdx, idx] = Dkde([i,j])
+        for idx, i in tqdm(enumerate(xx)):
+            for jdx, j in enumerate(yy):
+                d[jdx, idx] = kde([i,j])
 
         #Plotting residuals with histograms
-        left, bottom, width, height = 0.1, 0.35, 0.65, 0.60
-        fig = plt.figure(1, figsize=(10,10))
+        left, bottom, width, height = 0.1, 0.35, 0.8, 0.60
+        fig = plt.figure(1, figsize=(8,8))
         sax = fig.add_axes([left, bottom, width, height])
-        yax = fig.add_axes([left+width+0.02, bottom, 0.2, height])
         xax = fig.add_axes([left, 0.1, width, 0.22], sharex=sax)
         sax.xaxis.set_visible(False)
-        yax.set_yticklabels([])
         xax.grid()
         xax.set_axisbelow(True)
-        yax.grid()
-        yax.set_axisbelow(True)
 
         fig.suptitle('KDE of RGBB residuals to straight line polyfit, US '+US)
 
-        sax.hist2d(Dxxyy[:,0],Dxxyy[:,1],bins=np.sqrt(len(x)))
-        sax.contour(DX,DY,Dd)
-        sax.axhline(0.,c='r',label='Polyfit',zorder=1001)
+        sax.hist2d(xxyy[:,0],xxyy[:,1],bins=bins, cmap='Blues_r', zorder=1000)
+        sax.contour(X,Y,d, cmap='copper', zorder=1001, label='Kernel Density',)
         sax.legend(loc='best',fancybox=True)
 
-        yax.hist(D,bins=int(np.sqrt(len(D))),histtype='step',orientation='horizontal', normed=True)
-        # yax.scatter(np.exp(Model.prob_y(start_params)), D,c='orange')
-        yax.set_ylim(sax.get_ylim())
+        xax2 = xax.twinx()
+        xax2.scatter(x,np.exp(Model.fg_x(start_params)),c='cornflowerblue', label='RGBB Model')
+        xax.scatter(x,np.exp(Model.bg_x(start_params)),c='orange', label='RGB Model')
+        xax.hist(x,bins=bins,histtype='step',color='r',normed=True)
 
-        xax.hist(x,bins=int(np.sqrt(len(x))),histtype='step',normed=True)
-        xax.scatter(x,np.exp(Model.bg_x(start_params)),c='orange')
-        xax.scatter(x,np.exp(Model.fg_x(start_params)),c='cornflowerblue')
-
-        sax.set_ylabel(r"$log_{10}(T_{eff})$ - Straight Line Model")
+        sax.set_ylabel(r"$log_{10}(T_{eff})$")
         xax.set_xlabel(r"$log_{10}(\nu_{max})$")
         fig.savefig('Output/Saniya_RGBB/KDE_visual_'+US+'.png')
-        plt.show()
         plt.close('all')
 
 ####---RUNNING MCMC
@@ -193,36 +167,28 @@ if __name__ == '__main__':
             std[idx] = np.std(chain[:,idx])
 
         #Plotting residuals with histograms
-        left, bottom, width, height = 0.1, 0.35, 0.65, 0.60
-        fig = plt.figure(1, figsize=(10,10))
+        #Plotting residuals with histograms
+        left, bottom, width, height = 0.1, 0.35, 0.8, 0.60
+        fig = plt.figure(1, figsize=(8,8))
         sax = fig.add_axes([left, bottom, width, height])
-        yax = fig.add_axes([left+width+0.02, bottom, 0.2, height])
-        xax = fig.add_axes([left, 0.1, width, 0.22], sharex=sax)
+        xax = fig.add_axes([left, 0.1, width-0.15, 0.22], sharex=sax)
         sax.xaxis.set_visible(False)
-        yax.set_yticklabels([])
         xax.grid()
         xax.set_axisbelow(True)
-        yax.grid()
-        yax.set_axisbelow(True)
 
-        fig.suptitle('Resulting probability distributions, US '+US)
+        fig.suptitle('KDE of RGBB residuals to straight line polyfit, US '+US)
 
-        sax.scatter(x, y, c=fg_pp,cmap='Blues_r',label=US)
-        # sax.axhline(0.,c='r',label='Straight line fit',zorder=1001)
-        sax.legend(loc='best',fancybox=True)
+        col = sax.scatter(x, y, c=fg_pp, cmap='viridis')
+        fig.colorbar(col, ax=sax, label = 'RGBB membership posterior probability')
 
-        yax.hist(Dr,bins=int(np.sqrt(len(Dr))),histtype='step',orientation='horizontal', normed=True)
-        # yax.scatter(np.exp(Model.prob_y(res)), Dr,c='orange')
-        yax.set_ylim(sax.get_ylim())
-
-        xax.hist(x,bins=int(np.sqrt(len(x))),histtype='step',normed=True)
-        xax.scatter(x,np.exp(Model.bg_x(res)),c='orange')
-        xax.scatter(x,np.exp(Model.fg_x(res)),c='cornflowerblue')
+        xax2 = xax.twinx()
+        xax2.scatter(x,np.exp(Model.fg_x(res)),c='cornflowerblue', label='RGBB Model')
+        xax.scatter(x,np.exp(Model.bg_x(res)),c='orange', label='RGB Model')
+        xax.hist(x,bins=bins,histtype='step',color='r',normed=True)
 
         sax.set_ylabel(r"$log_{10}(T_{eff})$")
         xax.set_xlabel(r"$log_{10}(\nu_{max})$")
         fig.savefig('Output/Saniya_RGBB/result_'+US+'.png')
-        plt.show()
         plt.close('all')
 
 
@@ -248,7 +214,6 @@ if __name__ == '__main__':
         df.label[mask] = 'RGBB'
         df.label[~mask] = 'RGB'
 
-        sys.exit()
         out = glob.glob('../data/Saniya_RGBB/*'+US+'.*')[0]
 
         header = "#Generated synthetic population: 1000 stars\n\
