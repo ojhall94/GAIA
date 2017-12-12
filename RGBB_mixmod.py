@@ -38,22 +38,22 @@ class cModel:
         self.x = _x
         self.y = _y
 
-    def prob_y(self, p):
-        _, _, m, c, sigm, _, _ = p
-        #Calculating the likelihood in the Y direction
-        model = m * self.x + c
-        lnLy = -0.5 * (((y - model) / sigm)**2 + 2*np.log(sigm) +np.log(2*np.pi))
-        return lnLy
+    # def prob_y(self, p):
+    #     _, _, m, c, sigm, _, _ = p
+    #     #Calculating the likelihood in the Y direction
+    #     model = m * self.x + c
+    #     lnLy = -0.5 * (((y - model) / sigm)**2 + 2*np.log(sigm) +np.log(2*np.pi))
+    #     return lnLy
 
     def fg_x(self, p):
-        b, sigb, _, _, _, _, _ = p
+        b, sigb, _, _ = p
 
         #Calculating the likelihood in the X direction
         lnLx = -0.5 * (((b - self.x) / sigb)**2 + 2*np.log(sigb) +np.log(2*np.pi))
         return lnLx
 
     def bg_x(self, p):
-        _, _, _, _, _, lambd, _ = p
+        _, _, lambd, _ = p
 
         #Calculating the likelihood in the X direction
         A = lambd * (np.exp(lambd*x.max()) - np.exp(lambd*x.min()))**-1
@@ -61,11 +61,11 @@ class cModel:
         return lnLx
 
     def bg(self, p):
-        bg =  self.prob_y(p) + self.bg_x(p)
+        bg =  self.bg_x(p)
         return bg
 
     def fg(self, p):
-        fg = self.prob_y(p) + self.fg_x(p)
+        fg = self.fg_x(p)
         return fg
 
 
@@ -106,12 +106,11 @@ if __name__ == '__main__':
 
 
 ####---SETTING UP MCMC
-        labels_mc = ["$b$", r"$\sigma(b)$", "$m$", "$c$", r"$\sigma(m)$", r"$\lambda$","$Q$"]
+        labels_mc = ["$b$", r"$\sigma(b)$", r"$\lambda$","$Q$"]
         std = np.std(D)
-        start_params = np.array([lognuguess, 0.02, f[0], f[1], std, 1.8, 0.5])
-        bounds = [(lognuguess-.05, lognuguess+.05,), (0.01,0.03),\
-                    (f[0]-0.02,f[0]+0.02), (f[1]-0.3,f[1]+0.3), \
-                    (std*0.5,std*1.5), (1.4, 2.2), (0,1)]
+        start_params = np.array([lognuguess, 0.02, 1.8, 0.5])
+        bounds = [(lognuguess-.05, lognuguess+.05,), (0.01,0.05),\
+                    (1.4, 2.2), (0,1)]
         Model = cModel(x, y)
         lnprior = cPrior.Prior(bounds)
         Like = cLikelihood.Likelihood(lnprior,Model)
@@ -156,7 +155,7 @@ if __name__ == '__main__':
         sax.legend(loc='best',fancybox=True)
 
         yax.hist(D,bins=int(np.sqrt(len(D))),histtype='step',orientation='horizontal', normed=True)
-        yax.scatter(np.exp(Model.prob_y(start_params)), D,c='orange')
+        # yax.scatter(np.exp(Model.prob_y(start_params)), D,c='orange')
         yax.set_ylim(sax.get_ylim())
 
         xax.hist(x,bins=int(np.sqrt(len(x))),histtype='step',normed=True)
@@ -208,21 +207,19 @@ if __name__ == '__main__':
 
         fig.suptitle('Resulting probability distributions, US '+US)
 
-        fn = res[2]*x + res[3]
-        Dr = y - fn
-        sax.scatter(x, Dr, c=fg_pp,cmap='Blues_r',label=US)
-        sax.axhline(0.,c='r',label='Straight line fit',zorder=1001)
+        sax.scatter(x, y, c=fg_pp,cmap='Blues_r',label=US)
+        # sax.axhline(0.,c='r',label='Straight line fit',zorder=1001)
         sax.legend(loc='best',fancybox=True)
 
         yax.hist(Dr,bins=int(np.sqrt(len(Dr))),histtype='step',orientation='horizontal', normed=True)
-        yax.scatter(np.exp(Model.prob_y(res)), Dr,c='orange')
+        # yax.scatter(np.exp(Model.prob_y(res)), Dr,c='orange')
         yax.set_ylim(sax.get_ylim())
 
         xax.hist(x,bins=int(np.sqrt(len(x))),histtype='step',normed=True)
         xax.scatter(x,np.exp(Model.bg_x(res)),c='orange')
         xax.scatter(x,np.exp(Model.fg_x(res)),c='cornflowerblue')
 
-        sax.set_ylabel(r"$log_{10}(T_{eff})$ - Straight Line Model")
+        sax.set_ylabel(r"$log_{10}(T_{eff})$")
         xax.set_xlabel(r"$log_{10}(\nu_{max})$")
         fig.savefig('Output/Saniya_RGBB/result_'+US+'.png')
         plt.show()
