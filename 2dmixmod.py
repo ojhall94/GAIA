@@ -29,47 +29,23 @@ import cLikelihood
 import cPrior
 
 def get_values():
-    # sfile = glob.glob('../data/TRILEGAL_sim/*.all.*.txt')[0]
-    sfile = glob.glob('../data/TRILEGAL_sim/*all*.txt')[0]
-    df = pd.read_csv(sfile, sep='\s+')
+    sfile = glob.glob('../Cuts_Data/cuts_MH_JKs_logg.txt')[0]
+    try:
+        df = pd.read_csv(sfile, sep='\s+')
+    except IOError:
+        print('Cuts file doesnt exist, run the slider first.')
 
-    '''This function corrects for extinction and sets the RC search range'''
-    df['Aks'] = 0.114*df.Av #Cardelli+1989>-
-    df['M_ks'] = df.Ks - df['m-M0'] - df.Aks
-
-    corrections = pd.DataFrame(columns=['M_ks<','M_ks>','Ks<','Ks>','Mact<','M/H>','M/H<'])
-    corr = [-0.5, -2.5, 15., 6., 1.5, -.5, .5]
-    corrections.loc[0] = corr
-    corrections.to_csv('../Output/data_selection.csv')
-
-    #Set selection criteria
-    df = df[df.M_ks < corr[0]]
-    df = df[df.M_ks > corr[1]]
-
-    df = df[df.Ks < corr[2]]
-    df = df[df.Ks > corr[3]]
-
-    df = df[df.Mact < corr[4]]
-
-    df = df[df['[M/H]'] > corr[5]]
-    df = df[df['[M/H]'] < corr[6]]
-
-    # df = df[df['Ks'] < 10.5]
-    # df = df[df['Ks'] > 7.0]
-
-    # df = df[df.stage == 4]
-    # df = df[0:5000]
-
-    df = get_errors(df)
+    '''Errors not included in current run'''
+    # df = get_errors(df, DR=2)
+    df = df[0:10000]
 
     return df.M_ks.values, df.Ks.values, df.stage, df
 
-def get_errors(df):
-    DR = 2  #Choosing the data release
-    if DR == 1:
-        df['pi_err'] = np.abs(0.3 + np.random.normal(0,0.5,len(df)) * 0.3) #mas
-
+def get_errors(df, DR=2):
     if DR == 2:
+        df['pi_err'] = np.abs(0.2 + np.random.normal(0,0.5,len(df)) * 0.1) #mas
+
+    if DR == 'fin':
         df['pi_err'] = np.abs(10.e-3 + np.random.normal(0,0.5,len(df)) * 2.e-3) #mas
 
     df['d'] = 10**(1+ (df['m-M0']/5))       #Getting all distances (pc)
@@ -87,6 +63,42 @@ def get_errors(df):
     plt.scatter(df['d'],df['Ks'],s=5,zorder=1000)
     plt.show()
     return df
+
+
+def probability_plot(x, y, X, Y, d, bins):
+    #Plotting residuals with histograms
+    left, bottom, width, height = 0.1, 0.35, 0.60, 0.60
+    fig = plt.figure(1, figsize=(8,8))
+    sax = fig.add_axes([left, bottom, width, height])
+    yax = fig.add_axes([left+width+0.02, bottom, 0.25, height])
+    xax = fig.add_axes([left, 0.1, width, 0.22], sharex=sax)
+    sax.xaxis.set_visible(False)
+    yax.set_yticklabels([])
+    yax.set_xticklabels([])
+    xax.set_yticklabels([])
+    xax2 = xax.twinx()
+    xax2.set_yticklabels([])
+    xax.grid()
+    xax.set_axisbelow(True)
+    yax.grid()
+    yax.set_axisbelow(True)
+
+    fig.suptitle('Probability functions to be applied to TRILEGAL data.')
+
+    sax.hist2d(x, y,bins=bins, cmap='Blues_r', zorder=1000)
+    sax.contour(X,Y,d, cmap='copper',alpha=.5,label='KDE',zorder=1001)
+
+    yax.hist(y,bins=bins,color='r',histtype='step',orientation='horizontal', normed=True)
+    yax.set_ylim(sax.get_ylim())
+    yax.legend(loc='best')
+
+    xax.hist(x,bins=bins,histtype='step',color='r',normed=True)
+
+    xax.set_xlabel(r"$M_{Ks}$")
+    sax.set_ylabel(r"$m_{Ks}$")
+
+    return fig
+
 
 class cModel:
     '''Models for this run.'''
@@ -167,58 +179,86 @@ def tortoise(dfm):
     return len(df[labels==4])
 
 if __name__ == '__main__':
+    plt.close('all')
 ####---SETTING UP DATA
     x, y, labels, df = get_values()
-    xerr = df['sig_M']
-    # xerr = np.abs(0.05 + np.random.normal(0, 1, len(x)) * 0.005)
-    # yerr = np.abs(0.1 + np.random.normal(0, 1, len(y)) * 0.05)
 
 ####---PLOTTING INITIAL DATA
     fig, ax = plt.subplots()
     c = ['r','b','c','g','y','k','m','darkorange','chartreuse']
     label = ['Pre-Main Sequence', 'Main Sequence', 'Subgiant Branch', 'Red Giant Branch', 'Core Helium Burning',\
                 'RR Lyrae variables', 'Cepheid Variables', 'Asymptotic Giant Branch','Supergiants']
-    # for i in range(int(np.nanmax(labels))+1):
-    #     ax.scatter(x[labels==i], y[labels==i], c=c[i], s=1,zorder=1000,label=label[i])
     ax.scatter(x[labels==3], y[labels==3], c=c[3], s=1,zorder=1000,label=label[3])
-    ax.scatter(x[labels==4], y[labels==4], c=c[4], s=1,zorder=1000,label=label[4])
-
-
-    ax.errorbar(x, y, xerr=xerr, fmt=",k", ms=0, capsize=0, lw=1, zorder=999)
+    ax.scatter(x[labels==4], y[labels==4], c=c[4], s=1,zorder=1001,label=label[4])
     ax.set_xlabel(r"$M_{Ks}$")
     ax.set_ylabel(r"$m_{Ks}$")
-    ax.set_title(r"Labeled TRILEGAL simulated data for (M $<$ 1.4Msol, -.5 $<$ [M/H] $<$ .5)")
+    ax.set_title("Labeled TRILEGAL simulated data cut in [M/H], logg & J-Ks")
     ax.legend(loc='best',fancybox=True)
     ax.grid()
     ax.set_axisbelow(True)
-
-    plt.savefig('/home/oliver/Dropbox/Papers/Midterm/Images/C4_TRILEGALfull.png')
-    # plt.savefig('../Output/dataset.png')
+    fig.savefig('Output/investigate_TRILEGAL.png')
     plt.show()
     plt.close('all')
 
-####---SETTING UP AND RUNNING MCMC
+####---BUILDING KDE AND OTHER PARAM
+    #Getting the KDE of the 2D distribution
+    xxyy = np.ones([len(x),2])
+    xxyy[:,0] = x
+    xxyy[:,1] = y
+    kde = stats.gaussian_kde(xxyy.T)
+
+    #Setting up a 2D meshgrid
+    size = 200
+    xx = np.linspace(x.min(),x.max(),size)
+    yy = np.linspace(y.min(),y.max(),size)
+    X, Y  = np.meshgrid(xx, yy)
+    d = np.ones([size, size])
+
+    #Calculating the KDE value for each point on the grid
+    for idx, i in tqdm(enumerate(xx)):
+        for jdx, j in enumerate(yy):
+            d[jdx, idx] = kde([i,j])
+
+    bins = int(np.sqrt(len(x)))
+    fig = probability_plot(x, y, X, Y, d, bins)
+    plt.show()
+    sys.exit()
+
+####---SETTING UP MCMC
     labels_mc = ["$b$", r"$\sigma(RC)$", "$o$", r"$\sigma(o)$", "$Q$"]
     bounds = [(-1.7,-1.4), (0.01,0.2), (0.0,2.0), (0.1, 2.), (0, 1)]
     start_params = np.array([-1.6, 0.1, 0.1, 1.0, 0.5])
 
-    Model = cModel(x, y, xerr)
-    lprior = cPrior.Prior(bounds)
-    Like = cLikelihood.Likelihood(x, y, xerr, lnprior, Model)
 
-    # Initialize the walkers at a reasonable location.
-    ntemps, ndims, nwalkers = 2, len(bounds), 100
+####---CHECKING MODELS BEFORE RUN
+    #Getting other probability functions
+    ModeLLs = cLLModels.LLModels(x, y, labels_mc)
+    '''NEED TO CORRECTLY SET UP THE MODEL STRUCTURE FOR THIS'''
 
-    Fit = cMCMC.MCMC(start_params, Like, lnprior, 0, ntemps, 1000, nwalkers)
+    fig = probability_plot(x, y, fy, X, Y, bins, '''REMAINDER''')
+    fig.savefig('Output/visual_models.png')
+    plt.show()
+    plt.close('all')
+
+####---RUNNING MCMC
+    ModeLLs = cLLModels.LLModels(x, y, labels_mc)
+    lnpiror = cPrior.Prior(bounds)
+    Like = cLikelihood(lnprior, ModeLLs)
+
+    ntemps, nwalkers = 4, 32
+
+    Fit = cMCMC.MCMC(start_params, Like, lnprior, 'none', ntemps, 1000, nwalkers)
     chain = Fit.run()
 
 ####---CONSOLIDATING RESULTS
     corner.corner(chain, bins=35, labels=labels_mc)
     plt.savefig('../Output/corner.png')
     plt.show()
+    plt.close()
 
     lnK, fg_pp = Fit.log_bayes()
     mask = lnK > 1
+    Fit.dump()
 
 ####---PLOTTING RESULTS
     print('Plotting results...')

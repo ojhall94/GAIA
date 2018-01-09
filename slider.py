@@ -126,8 +126,10 @@ if __name__ == "__main__":
     odf = odf[odf.M_ks > -2.5]
     odf = odf[odf.Ks < 15.]
     odf = odf[odf.Ks > 6.]
-    dff = odf[0:8000]
 
+    # dff = odf[0:8000]
+    dff = odf[:]
+    
     '''Load in first order data'''
     U = cUpdate(dff, odf)
 
