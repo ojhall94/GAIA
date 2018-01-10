@@ -25,8 +25,8 @@ import scipy.stats as stats
 import scipy.misc as misc
 
 import cMCMC
-import cLikelihood
 import cPrior
+import cLLModels
 
 def get_values():
     sfile = glob.glob('../Cuts_Data/cuts_MH_JKs_logg.txt')[0]
@@ -64,8 +64,46 @@ def get_errors(df, DR=2):
     plt.show()
     return df
 
+class cLikelihood:
+    '''A likelihood function that pulls in log likehoods from the LLModels class
+    '''
+    def __init__(self,_lnprior, _Model):
+        self.lnprior = _lnprior
+        self.Model = _Model
 
-def probability_plot(x, y, X, Y, d, bins):
+    #Likelihood for the 'foreground'
+    def lnlike_fg(self, p):
+        return self.Model.lorentzian_x(p)
+
+    def lnlike_bg(self, p):
+        return self.Model.gauss_x(p)
+
+    def lnprob(self, p):
+        Q = p[-1]
+
+        # First check the prior.
+        lp = self.lnprior(p)
+        if not np.isfinite(lp):
+            return -np.inf, None
+
+        # Compute the vector of foreground likelihoods and include the q prior.
+        ll_fg = self.lnlike_fg(p)
+        arg1 = ll_fg + np.log(Q)
+
+        # Compute the vector of background likelihoods and include the q prior.
+        ll_bg = self.lnlike_bg(p)
+        arg2 = ll_bg + np.log(1.0 - Q)
+
+        # Combine these using log-add-exp for numerical stability.
+        ll = np.nansum(np.logaddexp(arg1, arg2))
+
+        return lp + ll
+
+    def __call__(self, p):
+        logL = self.lnprob(p)
+        return logL
+
+def probability_plot(x, y, bins,x0, lor_x, gauss_x):
     #Plotting residuals with histograms
     left, bottom, width, height = 0.1, 0.35, 0.60, 0.60
     fig = plt.figure(1, figsize=(8,8))
@@ -86,41 +124,27 @@ def probability_plot(x, y, X, Y, d, bins):
     fig.suptitle('Probability functions to be applied to TRILEGAL data.')
 
     sax.hist2d(x, y,bins=bins, cmap='Blues_r', zorder=1000)
-    sax.contour(X,Y,d, cmap='copper',alpha=.5,label='KDE',zorder=1001)
+    sax.axvline(x0,c='r',zorder=1001)
 
     yax.hist(y,bins=bins,color='r',histtype='step',orientation='horizontal', normed=True)
     yax.set_ylim(sax.get_ylim())
     yax.legend(loc='best')
 
     xax.hist(x,bins=bins,histtype='step',color='r',normed=True)
+    xax2.scatter(x,lor_x,s=5,c='cornflowerblue',alpha=.5,label='Lorentzian in X')
+    xax2.scatter(x,gauss_x,s=5,c='orange',alpha=.5,label='Gaussian in X')
+    xax2.scatter(x,lor_x+gauss_x,s=1,c='green',alpha=.2,label='Combined')
+    xax2.set_ylim(0.)
+    xax.axvline(x0,c='r',label=r"$x0$")
+    h1, l1 = xax.get_legend_handles_labels()
+    h2, l2 = xax2.get_legend_handles_labels()
+    xax.legend(h1+h2, l1+l2)
+
 
     xax.set_xlabel(r"$M_{Ks}$")
     sax.set_ylabel(r"$m_{Ks}$")
 
     return fig
-
-
-class cModel:
-    '''Models for this run.'''
-    def __init__(self, _x, _y, _xerr):
-        self.x = _x
-        self.y = _y
-        self.xerr = _xerr
-
-    def fg(self, p):
-        b, sigrc, _, _, _ = p
-        sig = np.sqrt(sigrc**2 + self.xerr**2)
-        return -0.5 * ((self.x - b) / sig)**2 - np.log(sig)
-
-    def bg(self, p):
-        _, _, o, sigo, _ = p
-        sig = np.sqrt(sigo**2 + self.xerr**2)
-        val = np.abs(self.x).max() + np.abs(self.x).min()
-
-        xn = self.x + val
-        on = np.abs(o)
-
-        return -np.log(xn) -np.log(sig) - 0.5 * (np.log(xn) - on)**2/sig**2
 
 def save_library(df, chain,labels_mc):
     results = pd.DataFrame(columns=labels_mc)
@@ -190,6 +214,8 @@ if __name__ == '__main__':
                 'RR Lyrae variables', 'Cepheid Variables', 'Asymptotic Giant Branch','Supergiants']
     ax.scatter(x[labels==3], y[labels==3], c=c[3], s=1,zorder=1000,label=label[3])
     ax.scatter(x[labels==4], y[labels==4], c=c[4], s=1,zorder=1001,label=label[4])
+    sel = (labels!=3)&(labels!=4)
+    ax.scatter(x[sel], y[sel], c=c[0], s=1, zorder=1002, label='Other types')
     ax.set_xlabel(r"$M_{Ks}$")
     ax.set_ylabel(r"$m_{Ks}$")
     ax.set_title("Labeled TRILEGAL simulated data cut in [M/H], logg & J-Ks")
@@ -197,52 +223,43 @@ if __name__ == '__main__':
     ax.grid()
     ax.set_axisbelow(True)
     fig.savefig('Output/investigate_TRILEGAL.png')
-    plt.show()
     plt.close('all')
 
-####---BUILDING KDE AND OTHER PARAM
-    #Getting the KDE of the 2D distribution
-    xxyy = np.ones([len(x),2])
-    xxyy[:,0] = x
-    xxyy[:,1] = y
-    kde = stats.gaussian_kde(xxyy.T)
-
-    #Setting up a 2D meshgrid
-    size = 200
-    xx = np.linspace(x.min(),x.max(),size)
-    yy = np.linspace(y.min(),y.max(),size)
-    X, Y  = np.meshgrid(xx, yy)
-    d = np.ones([size, size])
-
-    #Calculating the KDE value for each point on the grid
-    for idx, i in tqdm(enumerate(xx)):
-        for jdx, j in enumerate(yy):
-            d[jdx, idx] = kde([i,j])
-
+####---EXAMINING & ESTIMATING PARAMETERS
     bins = int(np.sqrt(len(x)))
-    fig = probability_plot(x, y, X, Y, d, bins)
-    plt.show()
-    sys.exit()
+
+    # for sel in [labels!=4, labels==4]:
+    #     plt.hist(x[sel],histtype='step',bins=bins)
+    # plt.hist(x,histtype='step',bins=bins)
+    # plt.show()
+
+    n, b = np.histogram(x,bins=bins)
+    x0guess = b[np.argmax(n)]
 
 ####---SETTING UP MCMC
-    labels_mc = ["$b$", r"$\sigma(RC)$", "$o$", r"$\sigma(o)$", "$Q$"]
-    bounds = [(-1.7,-1.4), (0.01,0.2), (0.0,2.0), (0.1, 2.), (0, 1)]
-    start_params = np.array([-1.6, 0.1, 0.1, 1.0, 0.5])
-
+    labels_mc = ["$x0$", r"$\gamma$",\
+                r"$\mu$", r"$\sigma$",\
+                "$Q$"]
+    start_params = np.array([x0guess, 0.02,\
+                            -1.56, 0.1,\
+                            0.5])
+    bounds = [(-1.7,-1.6), (0.01,0.1),\
+                (-1.6,-1.5), (0.05, 0.15),\
+                (0, 1)]
 
 ####---CHECKING MODELS BEFORE RUN
     #Getting other probability functions
     ModeLLs = cLLModels.LLModels(x, y, labels_mc)
-    '''NEED TO CORRECTLY SET UP THE MODEL STRUCTURE FOR THIS'''
+    lor_x = np.exp(ModeLLs.lorentzian_x(start_params))
+    gauss_x = np.exp(ModeLLs.gauss_x(start_params))
 
-    fig = probability_plot(x, y, fy, X, Y, bins, '''REMAINDER''')
+    fig = probability_plot(x, y, bins, x0guess, lor_x, gauss_x)
     fig.savefig('Output/visual_models.png')
     plt.show()
     plt.close('all')
 
 ####---RUNNING MCMC
-    ModeLLs = cLLModels.LLModels(x, y, labels_mc)
-    lnpiror = cPrior.Prior(bounds)
+    lnprior = cPrior.Prior(bounds)
     Like = cLikelihood(lnprior, ModeLLs)
 
     ntemps, nwalkers = 4, 32
@@ -252,7 +269,7 @@ if __name__ == '__main__':
 
 ####---CONSOLIDATING RESULTS
     corner.corner(chain, bins=35, labels=labels_mc)
-    plt.savefig('../Output/corner.png')
+    plt.savefig('Output/corner.png')
     plt.show()
     plt.close()
 
@@ -262,38 +279,41 @@ if __name__ == '__main__':
 
 ####---PLOTTING RESULTS
     print('Plotting results...')
-    rc = np.median(chain[:,0])  #RC luminosity
-    err = np.std(chain[:,0])    #stddev on RC luminosity
-    rcy = np.linspace(6,15,10)  #Y-axis for RC plot
+    npa = chain.shape[1]
+    res = np.zeros(npa)
+    std = np.zeros(npa)
+    for idx in np.arange(npa):
+        res[idx] = np.median(chain[:,idx])
+        std[idx] = np.std(chain[:,idx])
 
-    rcx = np.linspace(rc-err,rc+err,10) #Setting up shading bounds
-    rcy1 = np.ones(rcx.shape) * y.max()
-    rcy2 = np.ones(rcx.shape) * 6
+    #Calling probability functions with results
+    lor_x = np.exp(ModeLLs.lorentzian_x(res))
+    gauss_x = np.exp(ModeLLs.gauss_x(res))
+
+    fig = probability_plot(x, y, bins, res[0], lor_x, gauss_x)
+    fig.savefig('Output/visual_result.png')
 
     # Plot mixture model results
     fig, ax = plt.subplots()
-    ax.errorbar(x, y, xerr=xerr, fmt=",k", ms=0, capsize=0, lw=1, zorder=999)
-    s = ax.scatter(x, y, marker="1", s=1, c=fg_pp, cmap="Blues_r", vmin=0, vmax=1, zorder=1000)
-    ax.fill_between(rcx,rcy1,rcy2,color='red',alpha=0.8,zorder=1001,label='RC Confidence Interval')
+    ax.grid()
+    ax.set_axisbelow(True)
+
+    col = ax.scatter(x, y, c=fg_pp,s=5,cmap='viridis')
+    ax.axvline(res[0],c='r',label=r"$\mu$")
     ax.set_title(r"Inlier Posterior Probabilities for TRILEGAL simulated data")
     ax.set_xlabel(r"$M_{Ks}$")
     ax.set_ylabel(r"$m_{Ks}$")
-    fig.colorbar(s,label='Inlier Posterior Probability')
+    fig.colorbar(col,label='Inlier Posterior Probability')
     ax.legend(loc='best',fancybox='True')
-
-    ax.grid()
-    ax.set_axisbelow(True)
-    plt.savefig('/home/oliver/Dropbox/Papers/Midterm/Images/C4_posteriors.png')
-    # plt.savefig('../Output/posteriors.png')
+    plt.savefig('Output/posteriors.png')
     plt.show()
     plt.close('all')
 
-    #Plot labeled results
+    sys.exit()
+    #Plotting identified results
     fig, ax = plt.subplots()
     ax.scatter(x[~mask][labels[~mask]==3], y[~mask][labels[~mask]==3], c=c[3], s=1,zorder=1000,label=label[3])
     ax.scatter(x[~mask][labels[~mask]==4], y[~mask][labels[~mask]==4], c=c[4], s=1,zorder=1000,label=label[4])
-    ax.errorbar(x[~mask], y[~mask], xerr=xerr[~mask], fmt=",k", ms=0, capsize=0, lw=1, zorder=999)
-    ax.fill_between(rcx,rcy1,rcy2,color='red',alpha=0.8,zorder=1001,label='RC Confidence Interval')
 
     ax.set_xlabel(r"$M_{Ks}$")
     ax.set_ylabel(r"$m_{Ks}$")
@@ -302,8 +322,7 @@ if __name__ == '__main__':
     ax.grid()
     ax.set_axisbelow(True)
 
-    plt.savefig('/home/oliver/Dropbox/Papers/Midterm/Images/C4_result.png')
-    # plt.savefig('../Output/dataset.png')
+    plt.savefig('../Output/dataset.png')
     plt.show()
     plt.close('all')
 

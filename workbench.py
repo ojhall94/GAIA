@@ -94,6 +94,28 @@ def get_errors(df):
 
 
 if __name__ == '__main__':
+    x, y, labels, df = get_values()
+
+    fig, ax = plt.subplots()
+    ax2 = ax.twinx()
+    ax.hist(x, histtype='step',bins=int(np.sqrt(len(x))),normed=True)
+
+    for gamma in (np.arange(0.01,0.1,0.01)):
+        x0 = -1.67
+        lor = (1/np.pi*gamma) * ( gamma**2 / ((x-x0)**2 + gamma**2))
+
+        lnlor = 2*np.log(gamma) - np.log(np.pi*gamma) - np.log((x-x0)**2 + gamma**2)
+
+        ax2.scatter(x, np.exp(lnlor), s=5)
+    plt.show()
+
+
+
+
+
+    sys.exit()
+
+
     # vals = [-1.63,-1.59,-1.627,-1.626]
     # errs = [0.002,0.005,0.20,0.057]
     # noms = ['MixMod 2d', 'Mixmod 3d', 'RANSAC', 'Hawkins+17']
