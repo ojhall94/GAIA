@@ -19,7 +19,32 @@ class LLModels:
         except: pass
         try: self.locx0 = np.where(np.array(_labels)=="$x0$")[0][0]
         except: pass
+        try: self.locx1 = np.where(np.array(_labels)=="$x1$")[0][0]
+        except: pass
 
+
+
+    def lorentzian_fg(self, p):
+        '''A simple lortenzian in x space'''
+        x0 = p[self.locx0]
+        gamma = p[self.locgamma]
+
+        #Calculating the likelihood in the X direction
+        lnLx = 2*np.log(gamma) - np.log(np.pi*gamma) - np.log((self.x-x0)**2 + gamma**2)
+        return lnLx
+
+    def lorentzian_bg(self, p):
+        '''A simple lortenzian in x space'''
+        x1 = p[self.locx1]
+        mu = p[self.locmu]
+
+        #Calculating the likelihood in the X direction
+        lnLx = 2*np.log(mu) - np.log(np.pi*mu) - np.log((self.x-x1)**2 + mu**2)
+        return lnLx
+
+
+
+####---ADDITIONAL MODELS FROM RGBb
     def gauss_x(self, p):
         '''A simple gaussian in x space'''
         mu = p[self.locmu]
@@ -29,17 +54,6 @@ class LLModels:
         lnLx = -0.5 * (((mu - self.x) / sig)**2 + 2*np.log(sig) +np.log(2*np.pi))
         return lnLx
 
-    def lorentzian_x(self, p):
-        '''A simple lortenzian in x space'''
-        x0 = p[self.locx0]
-        gamma = p[self.locgamma]
-
-        #Calculating the likelihood in the X direction
-        lnLx = 2*np.log(gamma) - np.log(np.pi*gamma) - np.log((self.x-x0)**2 + gamma**2)
-        return lnLx
-
-
-####---ADDITIONAL MODELS FROM RGBb
     def exp_x(self, p):
         '''A normalised rising exponential probability in x space'''
         lambd = p[self.loclambd]

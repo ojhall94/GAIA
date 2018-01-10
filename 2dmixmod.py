@@ -73,10 +73,10 @@ class cLikelihood:
 
     #Likelihood for the 'foreground'
     def lnlike_fg(self, p):
-        return self.Model.lorentzian_x(p)
+        return self.Model.lorentzian_fg(p)
 
     def lnlike_bg(self, p):
-        return self.Model.gauss_x(p)
+        return self.Model.lorentzian_bg(p)
 
     def lnprob(self, p):
         Q = p[-1]
@@ -131,8 +131,8 @@ def probability_plot(x, y, bins,x0, lor_x, gauss_x):
     yax.legend(loc='best')
 
     xax.hist(x,bins=bins,histtype='step',color='r',normed=True)
-    xax2.scatter(x,lor_x,s=5,c='cornflowerblue',alpha=.5,label='Lorentzian in X')
-    xax2.scatter(x,gauss_x,s=5,c='orange',alpha=.5,label='Gaussian in X')
+    xax2.scatter(x,lor_x,s=5,c='cornflowerblue',alpha=.5,label='Foreground Lorentzian in X')
+    xax2.scatter(x,gauss_x,s=5,c='orange',alpha=.5,label='Background Lorentzian in X')
     xax2.scatter(x,lor_x+gauss_x,s=1,c='green',alpha=.2,label='Combined')
     xax2.set_ylim(0.)
     xax.axvline(x0,c='r',label=r"$x0$")
@@ -159,8 +159,8 @@ def save_library(df, chain,labels_mc):
     results.loc[0], stddevs.loc[0] = r, s
 
     output = pd.concat([results,stddevs],axis=1)
-    output.to_csv('../Output/2dmix_results.csv')
-    df.to_csv('../Output/2dmix_selected_data.csv')
+    output.to_csv('Output/2dmix_results.csv')
+    df.to_csv('Output/2dmix_selected_data.csv')
 
     return results, stddevs
 
@@ -238,22 +238,22 @@ if __name__ == '__main__':
 
 ####---SETTING UP MCMC
     labels_mc = ["$x0$", r"$\gamma$",\
-                r"$\mu$", r"$\sigma$",\
+                "$x1$", r"$\mu$",\
                 "$Q$"]
     start_params = np.array([x0guess, 0.02,\
                             -1.56, 0.1,\
                             0.5])
-    bounds = [(-1.7,-1.6), (0.01,0.1),\
-                (-1.6,-1.5), (0.05, 0.15),\
+    bounds = [(-1.7,-1.6), (0.01,0.8),\
+                (-1.6,-1.5), (0.08, 0.2),\
                 (0, 1)]
 
 ####---CHECKING MODELS BEFORE RUN
     #Getting other probability functions
     ModeLLs = cLLModels.LLModels(x, y, labels_mc)
-    lor_x = np.exp(ModeLLs.lorentzian_x(start_params))
-    gauss_x = np.exp(ModeLLs.gauss_x(start_params))
+    lor_fg = np.exp(ModeLLs.lorentzian_fg(start_params))
+    lor_bg = np.exp(ModeLLs.lorentzian_bg(start_params))
 
-    fig = probability_plot(x, y, bins, x0guess, lor_x, gauss_x)
+    fig = probability_plot(x, y, bins, x0guess, lor_fg, lor_bg)
     fig.savefig('Output/visual_models.png')
     plt.show()
     plt.close('all')
@@ -261,6 +261,9 @@ if __name__ == '__main__':
 ####---RUNNING MCMC
     lnprior = cPrior.Prior(bounds)
     Like = cLikelihood(lnprior, ModeLLs)
+    if np.isinf(lnprior(start_params)):
+        print('Starting guesses out of bounds.')
+        sys.exit()
 
     ntemps, nwalkers = 4, 32
 
@@ -273,12 +276,7 @@ if __name__ == '__main__':
     plt.show()
     plt.close()
 
-    lnK, fg_pp = Fit.log_bayes()
-    mask = lnK > 1
-    Fit.dump()
-
-####---PLOTTING RESULTS
-    print('Plotting results...')
+    print('Plotting model results...')
     npa = chain.shape[1]
     res = np.zeros(npa)
     std = np.zeros(npa)
@@ -287,11 +285,18 @@ if __name__ == '__main__':
         std[idx] = np.std(chain[:,idx])
 
     #Calling probability functions with results
-    lor_x = np.exp(ModeLLs.lorentzian_x(res))
-    gauss_x = np.exp(ModeLLs.gauss_x(res))
+    lor_x = np.exp(ModeLLs.lorentzian_fg(res))
+    gauss_x = np.exp(ModeLLs.lorentzian_bg(res))
 
     fig = probability_plot(x, y, bins, res[0], lor_x, gauss_x)
     fig.savefig('Output/visual_result.png')
+
+    print('Calculating posteriors...')
+    lnK, fg_pp = Fit.log_bayes()
+    mask = lnK > 1
+    Fit.dump()
+
+####---PLOTTING RESULTS
 
     # Plot mixture model results
     fig, ax = plt.subplots()
@@ -310,14 +315,22 @@ if __name__ == '__main__':
     plt.close('all')
 
     sys.exit()
+
     #Plotting identified results
     fig, ax = plt.subplots()
-    ax.scatter(x[~mask][labels[~mask]==3], y[~mask][labels[~mask]==3], c=c[3], s=1,zorder=1000,label=label[3])
-    ax.scatter(x[~mask][labels[~mask]==4], y[~mask][labels[~mask]==4], c=c[4], s=1,zorder=1000,label=label[4])
+    ax.scatter(x[~mask], y[~mask], c=c[3], s=1,zorder=1000,label='Outliers (RGB)')
+    ax.scatter(x[mask], y[mask], c=c[4], s=1,zorder=1000,label='Inliers (RC)')
+    ax.legend(loc='best',fancybox=True)
+
+    cheb_correct = len(x[mask][labels[mask]==4])
+    cheb_total = len(x[labels==4])
+    identified_total = len(x[mask])
+    recall = float(cheb_correct)/float(cheb_total)
+    precision = float(cheb_correct)/float(identified_total)
 
     ax.set_xlabel(r"$M_{Ks}$")
     ax.set_ylabel(r"$m_{Ks}$")
-    ax.set_title(r"TRILEGAL simulated data with classified RC stars removed")
+    ax.set_title('Recall: '+str.format('{0:.2f}',recall) + '| Precision: '+str.format('{0:.2f}',precision))
     ax.legend(loc='best',fancybox=True)
     ax.grid()
     ax.set_axisbelow(True)
@@ -327,18 +340,11 @@ if __name__ == '__main__':
     plt.close('all')
 
 
-
 ####---SAVING STUFF INTO A PANDAS LIBRARY
     print('Saving output...')
     results, stddevs = save_library(df,chain,labels_mc)
 
-    plt.scatter(x,np.exp(lnlike_fg(results.loc[0].values)))
-    plt.savefig('../Output/fg_like.png')
-    plt.close()
-    plt.scatter(x, np.exp(lnlike_bg(results.loc[0].values)))
-    plt.savefig('../Output/bg_like.png')
-    plt.close()
-
+    sys.exit()
 #__________________GETTING CORRECTION____________________________
     print('Calculating corrections...')
     #Plot showing correction
