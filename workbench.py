@@ -94,6 +94,38 @@ def get_errors(df):
 
 
 if __name__ == '__main__':
+    sfile = glob.glob('../data/TRILEGAL_sim/*all*.txt')[0]
+    # sfile = glob.glob('../data/Ben_Fun/TRI3*')[0]
+    odf = pd.read_csv(sfile, sep='\s+')
+
+    labels = odf.stage
+
+    '''This function corrects for extinction and sets the RC search range'''
+    odf['Aks'] = 0.114*odf.Av #Cardelli+1989>-
+    odf['M_ks'] = odf.Ks - odf['m-M0'] - odf.Aks
+    odf['Aj'] = 0.282*odf.Av
+    odf['M_j'] = odf.J - odf['m-M0'] - odf.Aj
+
+    fig, ax = plt.subplots()
+    c = ['r','b','c','g','y','k','m','darkorange','chartreuse']
+    label = ['Pre-Main Sequence', 'Main Sequence', 'Subgiant Branch', 'Red Giant Branch', 'Core Helium Burning',\
+                '??', '??', 'Asymptotic Giant Branch','??']
+    for i in range(len(c)):
+        ax.scatter(df.M_ks[labels==i],df.Ks[labels==i],s=1,c=c[i],label=label[i])
+    ax.legend(loc='best',fancybox=True)
+    plt.show()
+    plt.scatter(df.M_ks, df.Ks,s=1)
+    plt.show()
+    plt.scatter(df.M_j, df.J, s=1)
+    plt.show()
+    plt.scatter(df.M_ks, df.M_j - df.M_ks, s=1)
+    plt.show()
+
+
+
+
+
+    sys.exit()
     x, y, labels, df = get_values()
 
     fig, ax = plt.subplots()
