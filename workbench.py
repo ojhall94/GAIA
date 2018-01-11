@@ -94,17 +94,27 @@ def get_errors(df):
 
 
 if __name__ == '__main__':
-    sfile = glob.glob('../data/TRILEGAL_sim/*all*.txt')[0]
+    sfile = glob.glob('../Cuts_Data/cuts_MH_JKs_logg.txt')[0]
     # sfile = glob.glob('../data/Ben_Fun/TRI3*')[0]
     odf = pd.read_csv(sfile, sep='\s+')
 
     labels = odf.stage
 
-    '''This function corrects for extinction and sets the RC search range'''
+    '''Correct data'''
     odf['Aks'] = 0.114*odf.Av #Cardelli+1989>-
     odf['M_ks'] = odf.Ks - odf['m-M0'] - odf.Aks
     odf['Aj'] = 0.282*odf.Av
     odf['M_j'] = odf.J - odf['m-M0'] - odf.Aj
+    odf['JKs']
+
+    '''Set first order cuts on data'''
+    odf = odf[odf.M_ks < -0.5]
+    odf = odf[odf.M_ks > -2.5]
+    odf = odf[odf.Ks < 15.]
+    odf = odf[odf.Ks > 6.]
+
+    df = odf[:]
+
 
     fig, ax = plt.subplots()
     c = ['r','b','c','g','y','k','m','darkorange','chartreuse']
@@ -112,13 +122,69 @@ if __name__ == '__main__':
                 '??', '??', 'Asymptotic Giant Branch','??']
     for i in range(len(c)):
         ax.scatter(df.M_ks[labels==i],df.Ks[labels==i],s=1,c=c[i],label=label[i])
-    ax.legend(loc='best',fancybox=True)
+    ax.set_ylabel('Apparent Mag in Ks')
+    ax.set_xlabel('Absolute Mag in Ks')
     plt.show()
-    plt.scatter(df.M_ks, df.Ks,s=1)
+
+    fig, ax = plt.subplots(2)
+    for i in range(len(c)):
+        ax[0].scatter(df.M_ks[labels==i],df['[M/H]'][labels==i],s=1,c=c[i],label=label[i])
+    ax[0].set_ylabel('[M/H]')
+    ax[0].set_xlabel('Absolute Mag in Ks')
+    ax[1].hist(df['[M/H]'], histtype='step',bins=int(np.sqrt(len(df.Ks))))
+    ax[1].set_xlabel('[M/H]')
     plt.show()
-    plt.scatter(df.M_j, df.J, s=1)
+
+    fig, ax = plt.subplots(2)
+    for i in range(len(c)):
+        ax[0].scatter(df.M_ks[labels==i],df.logg[labels==i],s=1,c=c[i],label=label[i])
+    ax[0].set_ylabel('logg')
+    ax[0].set_xlabel('Absolute Mag in Ks')
+    ax[1].hist(df.logg, histtype='step',bins=int(np.sqrt(len(df.Ks))))
+    ax[1].set_xlabel('logg')
     plt.show()
-    plt.scatter(df.M_ks, df.M_j - df.M_ks, s=1)
+
+    fig, ax = plt.subplots(2)
+    for i in range(len(c)):
+        ax[0].scatter(df.M_ks[labels==i],df.logTe[labels==i],s=1,c=c[i],label=label[i])
+    ax[0].set_ylabel('LogTeff')
+    ax[0].set_xlabel('Absolute Mag in Ks')
+    ax[1].hist(df.logTe, histtype='step',bins=int(np.sqrt(len(df.Ks))))
+    ax[1].set_xlabel('LogTeff')
+    plt.show()
+
+    fig, ax = plt.subplots(2)
+    for i in range(len(c)):
+        ax[0].scatter(df.M_ks[labels==i],df.JKs[labels==i],s=1,c=c[i],label=label[i])
+    ax[0].set_ylabel('J-Ks')
+    ax[0].set_xlabel('Absolute Mag in Ks')
+    ax[1].hist(df.JKs, histtype='step',bins=int(np.sqrt(len(df.Ks))))
+    ax[1].set_xlabel('J-Ks')
+    plt.show()
+
+    fn = np.polyfit(df.M_ks, df.M_j, 1)
+    fy = df.M_ks*fn[0] + fn[1]
+    fig, ax = plt.subplots(2)
+    for i in range(len(c)):
+        ax[0].scatter(df.M_ks[labels==i],df.M_j[labels==i],s=1,c=c[i],label=label[i])
+    ax[0].set_ylabel('Absolute Mag in J')
+    ax[0].set_xlabel('Absolute Mag in Ks')
+    ax[1].hist(df.M_ks, histtype='step',bins=int(np.sqrt(len(df.Ks))))
+    ax[1].set_xlabel('J-Ks')
+
+    ax[0].plot(df.M_ks, fy,c='r')
+
+    plt.show()
+
+    fig, ax = plt.subplots(2)
+    for i in range(len(c)):
+        ax[0].scatter(df.M_ks[labels==i],df.M_j[labels==i] - fy[labels==i],s=1,c=c[i],label=label[i])
+    ax[0].set_xlabel('Absolute Mag in J - 1st order polyfit')
+    ax[0].set_ylabel('Absolute Mag in Ks')
+    ax[1].hist(df.M_j - fy, histtype='step',bins=int(np.sqrt(len(df.Ks))))
+    ax[1].set_xlabel('Mag in J - 1st order polyfit')
+
+    ax[0].axhline(0.,c='r')
     plt.show()
 
 
