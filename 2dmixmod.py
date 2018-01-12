@@ -73,10 +73,10 @@ class cLikelihood:
 
     #Likelihood for the 'foreground'
     def lnlike_fg(self, p):
-        return self.Model.lorentzian_fg(p)
+        return self.Model.lorentzian(p[0:2])
 
     def lnlike_bg(self, p):
-        return self.Model.lorentzian_bg(p)
+        return self.Model.lorentzian(p[2:4])
 
     def lnprob(self, p):
         Q = p[-1]
@@ -250,8 +250,8 @@ if __name__ == '__main__':
 ####---CHECKING MODELS BEFORE RUN
     #Getting other probability functions
     ModeLLs = cLLModels.LLModels(x, y, labels_mc)
-    lor_fg = np.exp(ModeLLs.lorentzian_fg(start_params))
-    lor_bg = np.exp(ModeLLs.lorentzian_bg(start_params))
+    lor_fg = np.exp(ModeLLs.lorentzian(start_params[0:2]))
+    lor_bg = np.exp(ModeLLs.lorentzian(start_params[2:4]))
 
     fig = probability_plot(x, y, bins, x0guess, lor_fg, lor_bg)
     fig.savefig('Output/visual_models.png')
@@ -285,8 +285,8 @@ if __name__ == '__main__':
         std[idx] = np.std(chain[:,idx])
 
     #Calling probability functions with results
-    lor_x = np.exp(ModeLLs.lorentzian_fg(res))
-    gauss_x = np.exp(ModeLLs.lorentzian_bg(res))
+    lor_x = np.exp(ModeLLs.lorentzian(res[0:2]))
+    gauss_x = np.exp(ModeLLs.lorentzian(res[2:4]))
 
     fig = probability_plot(x, y, bins, res[0], lor_x, gauss_x)
     fig.savefig('Output/visual_result.png')

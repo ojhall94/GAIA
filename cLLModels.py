@@ -24,24 +24,11 @@ class LLModels:
 
 
 
-    def lorentzian_fg(self, p):
+    def lorentzian(self, (x0, gamma)):
         '''A simple lortenzian in x space'''
-        x0 = p[self.locx0]
-        gamma = p[self.locgamma]
-
         #Calculating the likelihood in the X direction
         lnLx = 2*np.log(gamma) - np.log(np.pi*gamma) - np.log((self.x-x0)**2 + gamma**2)
         return lnLx
-
-    def lorentzian_bg(self, p):
-        '''A simple lortenzian in x space'''
-        x1 = p[self.locx1]
-        mu = p[self.locmu]
-
-        #Calculating the likelihood in the X direction
-        lnLx = 2*np.log(mu) - np.log(np.pi*mu) - np.log((self.x-x1)**2 + mu**2)
-        return lnLx
-
 
 
 ####---ADDITIONAL MODELS FROM RGBb

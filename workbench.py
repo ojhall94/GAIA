@@ -176,15 +176,39 @@ if __name__ == '__main__':
 
     plt.show()
 
-    fig, ax = plt.subplots(2)
-    for i in range(len(c)):
-        ax[0].scatter(df.M_ks[labels==i],df.M_j[labels==i] - fy[labels==i],s=1,c=c[i],label=label[i])
-    ax[0].set_xlabel('Absolute Mag in J - 1st order polyfit')
-    ax[0].set_ylabel('Absolute Mag in Ks')
-    ax[1].hist(df.M_j - fy, histtype='step',bins=int(np.sqrt(len(df.Ks))))
-    ax[1].set_xlabel('Mag in J - 1st order polyfit')
 
-    ax[0].axhline(0.,c='r')
+    jfy = df.M_j - df.M_ks
+    '''Getting the FG Model'''
+    n, b = np.histogram(jfy[labels==4],bins=int(np.sqrt(len(labels==4))))
+    mu = b[np.argmax(n)]
+    sig = np.std(jfy[labels==4])
+    gauss_x = np.exp(-0.5 * (((mu - jfy) / sig)**2 + 2*np.log(sig) +np.log(2*np.pi)))
+
+    '''Getting the BG Model'''
+    n, b = np.histogram(jfy[labels!=4],bins=int(np.sqrt(len(labels!=4))))
+    x0 = b[np.argmax(n)]
+    gamma = 0.04
+    lor_x = np.exp(2*np.log(gamma) - np.log(np.pi*gamma) - np.log((jfy-x0)**2 + gamma**2))
+
+    fig, ax = plt.subplots(2,2)
+    for i in range(len(c)):
+        ax[0,0].scatter(jfy[labels==i],df.M_ks[labels==i],s=1,c=c[i],label=label[i])
+    ax[0,0].set_xlabel('Absolute Mag in J - Absolute Mag in Ks')
+    ax[0,0].set_ylabel('Absolute Mag in Ks')
+    ax[0,1].hist(jfy, histtype='step',bins=int(np.sqrt(len(jfy))),normed=True)
+    ax[0,1].set_xlabel('J - K (RGB+CHeB+Others)')
+    ax[1,0].hist(jfy[labels==4], histtype='step',bins=int(np.sqrt(len(labels==4))),normed=True)
+    ax[1,0].set_xlabel('J - K for CHeB')
+    ax[1,1].hist(jfy[(labels!=4)], histtype='step',bins=int(np.sqrt(len((labels!=4)))),normed=True)
+    ax[1,1].set_xlabel('J - K for RGB+Others')
+
+    ax[1,0].scatter(jfy,gauss_x,c='blue',s=1)
+    ax[1,1].scatter(jfy,lor_x,c='orange',s=1)
+    ax01 = ax[0,1].twinx()
+    ax01.scatter(jfy,gauss_x + lor_x,c='green',s=1)
+
+    fig.tight_layout()
+
     plt.show()
 
 
