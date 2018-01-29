@@ -119,6 +119,8 @@ if __name__ == "__main__":
     '''Correct data'''
     odf['Aks'] = 0.114*odf.Av
     odf['M_ks'] = odf.Ks - odf['m-M0'] - odf.Aks
+    odf['Aj'] = 0.282*odf.Av
+    odf['M_j'] = odf.J - odf['m-M0'] - odf.Aj
     odf['JKs'] = odf.J - odf.Ks
 
     '''Set first order cuts on data'''
@@ -129,7 +131,7 @@ if __name__ == "__main__":
 
     # dff = odf[0:8000]
     dff = odf[:]
-    
+
     '''Load in first order data'''
     U = cUpdate(dff, odf)
 

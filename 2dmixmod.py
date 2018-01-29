@@ -4,148 +4,25 @@
 
 import numpy as np
 import pandas as pd
+import corner as corner
+import emcee
 
 import glob
 import sys
-import corner as corner
+import ClosePlots as cp
 from tqdm import tqdm
-# import seaborn as sns
-import emcee
 
 import matplotlib
-# import seaborn as sns
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 matplotlib.rcParams['xtick.direction'] = 'out'
 matplotlib.rcParams['ytick.direction'] = 'out'
 
-from statsmodels.robust.scale import mad as mad_calc
-from sklearn import linear_model
-import scipy.stats as stats
-import scipy.misc as misc
-
 import cMCMC
 import cPrior
 import cLLModels
 
-def get_values():
-    sfile = glob.glob('../Cuts_Data/cuts_MH_JKs_logg.txt')[0]
-    try:
-        df = pd.read_csv(sfile, sep='\s+')
-    except IOError:
-        print('Cuts file doesnt exist, run the slider first.')
-
-    '''Errors not included in current run'''
-    # df = get_errors(df, DR=2)
-    df = df[0:10000]
-
-    return df.M_ks.values, df.Ks.values, df.stage, df
-
-def get_errors(df, DR=2):
-    if DR == 2:
-        df['pi_err'] = np.abs(0.2 + np.random.normal(0,0.5,len(df)) * 0.1) #mas
-
-    if DR == 'fin':
-        df['pi_err'] = np.abs(10.e-3 + np.random.normal(0,0.5,len(df)) * 2.e-3) #mas
-
-    df['d'] = 10**(1+ (df['m-M0']/5))       #Getting all distances (pc)
-    df['pi'] = 1000/df['d']                 #Getting all parallax (mas)
-    df['sig_d'] = (1000*df['pi_err']/df['pi']**2)  #Propagating the Gaia error
-
-    df['sig_mu'] = np.sqrt( (5*np.log10(np.e)/df['d'])**2 * df['sig_d']**2 )
-    df['sig_M'] = df['sig_mu']  #Until we incorporate errors on Aks and Ks
-
-    plt.errorbar(df['pi'],df['Ks'],xerr=df['pi_err'],alpha=.1,fmt=".k",c='grey',zorder=999)
-    plt.scatter(df['pi'],df['Ks'],s=5,zorder=1000)
-    plt.show()
-
-    plt.errorbar(df['d'],df['Ks'],xerr=df['sig_d'],alpha=.1,fmt=".k",c='grey',zorder=999)
-    plt.scatter(df['d'],df['Ks'],s=5,zorder=1000)
-    plt.show()
-    return df
-
-class cLikelihood:
-    '''A likelihood function that pulls in log likehoods from the LLModels class
-    '''
-    def __init__(self,_lnprior, _Model):
-        self.lnprior = _lnprior
-        self.Model = _Model
-
-    #Likelihood for the 'foreground'
-    def lnlike_fg(self, p):
-        return self.Model.lorentzian(p[0:2])
-
-    def lnlike_bg(self, p):
-        return self.Model.lorentzian(p[2:4])
-
-    def lnprob(self, p):
-        Q = p[-1]
-
-        # First check the prior.
-        lp = self.lnprior(p)
-        if not np.isfinite(lp):
-            return -np.inf, None
-
-        # Compute the vector of foreground likelihoods and include the q prior.
-        ll_fg = self.lnlike_fg(p)
-        arg1 = ll_fg + np.log(Q)
-
-        # Compute the vector of background likelihoods and include the q prior.
-        ll_bg = self.lnlike_bg(p)
-        arg2 = ll_bg + np.log(1.0 - Q)
-
-        # Combine these using log-add-exp for numerical stability.
-        ll = np.nansum(np.logaddexp(arg1, arg2))
-
-        return lp + ll
-
-    def __call__(self, p):
-        logL = self.lnprob(p)
-        return logL
-
-def probability_plot(x, y, bins,x0, lor_x, gauss_x):
-    #Plotting residuals with histograms
-    left, bottom, width, height = 0.1, 0.35, 0.60, 0.60
-    fig = plt.figure(1, figsize=(8,8))
-    sax = fig.add_axes([left, bottom, width, height])
-    yax = fig.add_axes([left+width+0.02, bottom, 0.25, height])
-    xax = fig.add_axes([left, 0.1, width, 0.22], sharex=sax)
-    sax.xaxis.set_visible(False)
-    yax.set_yticklabels([])
-    yax.set_xticklabels([])
-    xax.set_yticklabels([])
-    xax2 = xax.twinx()
-    xax2.set_yticklabels([])
-    xax.grid()
-    xax.set_axisbelow(True)
-    yax.grid()
-    yax.set_axisbelow(True)
-
-    fig.suptitle('Probability functions to be applied to TRILEGAL data.')
-
-    sax.hist2d(x, y,bins=bins, cmap='Blues_r', zorder=1000)
-    sax.axvline(x0,c='r',zorder=1001)
-
-    yax.hist(y,bins=bins,color='r',histtype='step',orientation='horizontal', normed=True)
-    yax.set_ylim(sax.get_ylim())
-    yax.legend(loc='best')
-
-    xax.hist(x,bins=bins,histtype='step',color='r',normed=True)
-    xax2.scatter(x,lor_x,s=5,c='cornflowerblue',alpha=.5,label='Foreground Lorentzian in X')
-    xax2.scatter(x,gauss_x,s=5,c='orange',alpha=.5,label='Background Lorentzian in X')
-    xax2.scatter(x,lor_x+gauss_x,s=1,c='green',alpha=.2,label='Combined')
-    xax2.set_ylim(0.)
-    xax.axvline(x0,c='r',label=r"$x0$")
-    h1, l1 = xax.get_legend_handles_labels()
-    h2, l2 = xax2.get_legend_handles_labels()
-    xax.legend(h1+h2, l1+l2)
-
-
-    xax.set_xlabel(r"$M_{Ks}$")
-    sax.set_ylabel(r"$m_{Ks}$")
-
-    return fig
-
+'''<Unused in current build.>'''
 def save_library(df, chain,labels_mc):
     results = pd.DataFrame(columns=labels_mc)
     stddevs = pd.DataFrame(columns=[l+'err' for l in labels_mc])
@@ -202,6 +79,144 @@ def tortoise(dfm):
     plt.show()
     return len(df[labels==4])
 
+def get_errors(df, DR=2):
+    if DR == 2:
+        df['pi_err'] = np.abs(0.2 + np.random.normal(0,0.5,len(df)) * 0.1) #mas
+
+    if DR == 'fin':
+        df['pi_err'] = np.abs(10.e-3 + np.random.normal(0,0.5,len(df)) * 2.e-3) #mas
+
+    df['d'] = 10**(1+ (df['m-M0']/5))       #Getting all distances (pc)
+    df['pi'] = 1000/df['d']                 #Getting all parallax (mas)
+    df['sig_d'] = (1000*df['pi_err']/df['pi']**2)  #Propagating the Gaia error
+
+    df['sig_mu'] = np.sqrt( (5*np.log10(np.e)/df['d'])**2 * df['sig_d']**2 )
+    df['sig_M'] = df['sig_mu']  #Until we incorporate errors on Aks and Ks
+
+    plt.errorbar(df['pi'],df['Ks'],xerr=df['pi_err'],alpha=.1,fmt=".k",c='grey',zorder=999)
+    plt.scatter(df['pi'],df['Ks'],s=5,zorder=1000)
+    plt.show()
+
+    plt.errorbar(df['d'],df['Ks'],xerr=df['sig_d'],alpha=.1,fmt=".k",c='grey',zorder=999)
+    plt.scatter(df['d'],df['Ks'],s=5,zorder=1000)
+    plt.show()
+    return df
+'''</unused in current build.>'''
+
+def get_values():
+    sfile = glob.glob('../Cuts_Data/cuts_MH_JKs_logg.txt')[0]
+    try:
+        df = pd.read_csv(sfile, sep='\s+')
+    except IOError:
+        print('Cuts file doesnt exist, run the slider first.')
+
+    '''Errors not included in current run'''
+    # df = get_errors(df, DR=2)
+    df = df[0:10000]
+
+    return df.M_ks.values, df.M_j.values, df.stage, df
+
+class cLikelihood:
+    '''A likelihood function that pulls in log likehoods from the LLModels class
+    '''
+    def __init__(self,_lnprior, _Model):
+        self.lnprior = _lnprior
+        self.Model = _Model
+
+    #Likelihood for the 'foreground'
+    def lnlike_fg(self, p):
+        return self.Model.lorentzian(p[0:2]) + self.Model.lorentzian(p[4:6],dim='y')
+
+    def lnlike_bg(self, p):
+        return self.Model.lorentzian(p[2:4]) + self.Model.lorentzian(p[6:8],dim='y')
+
+    def lnprob(self, p):
+        Q = p[-1]
+
+        # First check the prior.
+        lp = self.lnprior(p)
+        if not np.isfinite(lp):
+            return -np.inf, None
+
+        # Compute the vector of foreground likelihoods and include the q prior.
+        ll_fg = self.lnlike_fg(p)
+        arg1 = ll_fg + np.log(Q)
+
+        # Compute the vector of background likelihoods and include the q prior.
+        ll_bg = self.lnlike_bg(p)
+        arg2 = ll_bg + np.log(1.0 - Q)
+
+        # Combine these using log-add-exp for numerical stability.
+        ll = np.nansum(np.logaddexp(arg1, arg2))
+
+        return lp + ll
+
+    def __call__(self, p):
+        logL = self.lnprob(p)
+        return logL
+
+def probability_plot(x, y, df, bins, Ksx0, Jx0, lor_Ks_fg, lor_Ks_bg, lor_J_fg, lor_J_bg):
+    #Plotting residuals with histograms
+    left, bottom, width, height = 0.1, 0.35, 0.4, 0.60
+    fig = plt.figure(1, figsize=(10,8))
+    lax = fig.add_axes([left, bottom, width, height])           #Left-hand plot
+    rax = fig.add_axes([left+width+0.05, bottom, width, height]) #Right-hand plot
+    xax = fig.add_axes([left, 0.1, width, 0.22], sharex=lax)    #x histogram
+    yax = fig.add_axes([left+width+0.05, 0.1, width, 0.22], sharex=rax) #y histogram
+    #Clearing necessary axes
+    lax.xaxis.set_visible(False)
+    rax.xaxis.set_visible(False)
+    yax.set_yticklabels([])
+    yax2 = yax.twinx()
+    yax2.set_yticklabels([])
+    xax.set_yticklabels([])
+    xax2 = xax.twinx()
+    xax2.set_yticklabels([])
+    #Turning on grid
+    xax.grid()
+    xax.set_axisbelow(True)
+    yax.grid()
+    yax.set_axisbelow(True)
+
+    fig.suptitle('Probability functions to be applied to TRILEGAL data.')
+    #Plotting left hand 2d hist
+    lax.hist2d(x, df.Ks,bins=bins, cmap='Blues_r', zorder=1000)
+    lax.axvline(Ksx0,c='r',zorder=1001)
+
+    #Plotting right hand 2d hist
+    rax.hist2d(y, df.J, bins=bins, cmap='Blues_r',zorder=1000)
+    rax.axvline(Jx0, c='r', zorder=1001)
+
+    #Plotting histogram with models for J
+    yax.hist(y,bins=bins,histtype='step',color='r',normed=True)
+    yax2.scatter(y,lor_J_fg,s=5,c='cornflowerblue',alpha=.5,label='Foreground Lorentzian in J')
+    yax2.scatter(y,lor_J_bg,s=5,c='orange',alpha=.5,label='Background Lorentzian in J')
+    yax2.scatter(y,lor_J_bg+lor_J_fg,s=1,c='green',alpha=.2,label='Combined')
+    yax2.set_ylim(0.)
+    yax.axvline(Jx0,c='r',label=r"$Jx0$")
+    h1, l1 = yax.get_legend_handles_labels()
+    h2, l2 = yax2.get_legend_handles_labels()
+    yax.legend(h1+h2, l1+l2)
+
+    #Plotting histograms with models for Ks
+    xax.hist(x,bins=bins,histtype='step',color='r',normed=True)
+    xax2.scatter(x,lor_Ks_fg,s=5,c='cornflowerblue',alpha=.5,label='Foreground Lorentzian in Ks')
+    xax2.scatter(x,lor_Ks_bg,s=5,c='orange',alpha=.5,label='Background Lorentzian in Ks')
+    xax2.scatter(x,lor_Ks_fg+lor_Ks_bg,s=1,c='green',alpha=.2,label='Combined')
+    xax2.set_ylim(0.)
+    xax.axvline(Ksx0,c='r',label=r"$Ksx0$")
+    h1, l1 = xax.get_legend_handles_labels()
+    h2, l2 = xax2.get_legend_handles_labels()
+    xax.legend(h1+h2, l1+l2)
+
+    #Set labels
+    xax.set_xlabel(r"$M_{Ks}$")
+    yax.set_xlabel(r"$M_{J}$")
+    lax.set_ylabel(r"$m_{Ks}$")
+    rax.set_ylabel(r"$m_{J}$")
+    return fig
+
+
 if __name__ == '__main__':
     plt.close('all')
 ####---SETTING UP DATA
@@ -212,10 +227,10 @@ if __name__ == '__main__':
     c = ['r','b','c','g','y','k','m','darkorange','chartreuse']
     label = ['Pre-Main Sequence', 'Main Sequence', 'Subgiant Branch', 'Red Giant Branch', 'Core Helium Burning',\
                 'RR Lyrae variables', 'Cepheid Variables', 'Asymptotic Giant Branch','Supergiants']
-    ax.scatter(x[labels==3], y[labels==3], c=c[3], s=1,zorder=1000,label=label[3])
-    ax.scatter(x[labels==4], y[labels==4], c=c[4], s=1,zorder=1001,label=label[4])
+    ax.scatter(x[labels==3], df.Ks[labels==3], c=c[3], s=1,zorder=1000,label=label[3])
+    ax.scatter(x[labels==4], df.Ks[labels==4], c=c[4], s=1,zorder=1001,label=label[4])
     sel = (labels!=3)&(labels!=4)
-    ax.scatter(x[sel], y[sel], c=c[0], s=1, zorder=1002, label='Other types')
+    ax.scatter(x[sel], df.Ks[sel], c=c[0], s=1, zorder=1002, label='Other types')
     ax.set_xlabel(r"$M_{Ks}$")
     ax.set_ylabel(r"$m_{Ks}$")
     ax.set_title("Labeled TRILEGAL simulated data cut in [M/H], logg & J-Ks")
@@ -228,32 +243,39 @@ if __name__ == '__main__':
 ####---EXAMINING & ESTIMATING PARAMETERS
     bins = int(np.sqrt(len(x)))
 
-    # for sel in [labels!=4, labels==4]:
-    #     plt.hist(x[sel],histtype='step',bins=bins)
-    # plt.hist(x,histtype='step',bins=bins)
-    # plt.show()
-
     n, b = np.histogram(x,bins=bins)
-    x0guess = b[np.argmax(n)]
+    Ksx0guess = b[np.argmax(n)]
+
+    n, b = np.histogram(y, bins=bins)
+    Jx0guess = b[np.argmax(n)]
 
 ####---SETTING UP MCMC
-    labels_mc = ["$x0$", r"$\gamma$",\
-                "$x1$", r"$\mu$",\
+    labels_mc = ["$x0 (Ks)$", r"$\gamma$ (Ks)",\
+                "$x1$(Ks)", r"$\mu$(Ks)",\
+                "$x0 (J)$", r"$\gamma$ (J)",\
+                "$x1$(J)", r"$\mu$(J)",\
                 "$Q$"]
-    start_params = np.array([x0guess, 0.02,\
-                            -1.56, 0.1,\
-                            0.5])
-    bounds = [(-1.7,-1.6), (0.01,0.8),\
-                (-1.6,-1.5), (0.08, 0.2),\
+    start_params = np.array([Ksx0guess, 0.02,   #Foreground params in Ks
+                            -1.56, 0.1,         #Background params in Ks
+                            Jx0guess, 0.02,     #Foreground params in J
+                            -0.85, 0.1,         #Background params in J
+                            0.5])              #Mixture model param
+    bounds = [(-1.7,-1.6), (0.01,0.8),
+                (-1.6,-1.5), (0.08, 0.2),
+                (-1.1,-0.9), (0.01,0.8),
+                (-0.9,-0.8), (0.08, 0.2),
                 (0, 1)]
 
 ####---CHECKING MODELS BEFORE RUN
     #Getting other probability functions
     ModeLLs = cLLModels.LLModels(x, y, labels_mc)
-    lor_fg = np.exp(ModeLLs.lorentzian(start_params[0:2]))
-    lor_bg = np.exp(ModeLLs.lorentzian(start_params[2:4]))
+    lor_Ks_fg = np.exp(ModeLLs.lorentzian(start_params[0:2]))
+    lor_Ks_bg = np.exp(ModeLLs.lorentzian(start_params[2:4]))
+    lor_J_fg = np.exp(ModeLLs.lorentzian(start_params[4:6], dim='y'))
+    lor_J_bg = np.exp(ModeLLs.lorentzian(start_params[6:8], dim='y'))
 
-    fig = probability_plot(x, y, bins, x0guess, lor_fg, lor_bg)
+    #Visualising the probability distributions
+    fig = probability_plot(x, y, df, bins, Ksx0guess, Jx0guess, lor_Ks_fg, lor_Ks_bg, lor_J_fg, lor_J_bg)
     fig.savefig('Output/visual_models.png')
     plt.show()
     plt.close('all')
@@ -288,7 +310,7 @@ if __name__ == '__main__':
     lor_x = np.exp(ModeLLs.lorentzian(res[0:2]))
     gauss_x = np.exp(ModeLLs.lorentzian(res[2:4]))
 
-    fig = probability_plot(x, y, bins, res[0], lor_x, gauss_x)
+    fig = probability_plot(x, y, df, bins, res[0], lor_x, gauss_x)
     fig.savefig('Output/visual_result.png')
 
     print('Calculating posteriors...')
@@ -303,24 +325,21 @@ if __name__ == '__main__':
     ax.grid()
     ax.set_axisbelow(True)
 
-    col = ax.scatter(x, y, c=fg_pp,s=5,cmap='viridis')
+    col = ax.scatter(x, df.Ks, c=fg_pp,s=5,cmap='viridis')
     ax.axvline(res[0],c='r',label=r"$\mu$")
     ax.set_title(r"Inlier Posterior Probabilities for TRILEGAL simulated data")
     ax.set_xlabel(r"$M_{Ks}$")
     ax.set_ylabel(r"$m_{Ks}$")
     fig.colorbar(col,label='Inlier Posterior Probability')
     ax.legend(loc='best',fancybox='True')
-    plt.savefig('Output/posteriors.png')
-    plt.show()
-    plt.close('all')
+    fig.savefig('Output/posteriors.png')
 
-    sys.exit()
 
     #Plotting identified results
-    fig, ax = plt.subplots()
-    ax.scatter(x[~mask], y[~mask], c=c[3], s=1,zorder=1000,label='Outliers (RGB)')
-    ax.scatter(x[mask], y[mask], c=c[4], s=1,zorder=1000,label='Inliers (RC)')
-    ax.legend(loc='best',fancybox=True)
+    ffig, aax = plt.subplots()
+    aax.scatter(x[~mask], df.Ks[~mask], c=c[3], s=1,zorder=1000,label='Outliers (RGB)')
+    aax.scatter(x[mask], df.Ks[mask], c=c[4], s=1,zorder=1000,label='Inliers (RC)')
+    aax.legend(loc='best',fancybox=True)
 
     cheb_correct = len(x[mask][labels[mask]==4])
     cheb_total = len(x[labels==4])
@@ -328,16 +347,22 @@ if __name__ == '__main__':
     recall = float(cheb_correct)/float(cheb_total)
     precision = float(cheb_correct)/float(identified_total)
 
-    ax.set_xlabel(r"$M_{Ks}$")
-    ax.set_ylabel(r"$m_{Ks}$")
-    ax.set_title('Recall: '+str.format('{0:.2f}',recall) + '| Precision: '+str.format('{0:.2f}',precision))
-    ax.legend(loc='best',fancybox=True)
-    ax.grid()
-    ax.set_axisbelow(True)
+    aax.set_xlabel(r"$M_{Ks}$")
+    aax.set_ylabel(r"$m_{Ks}$")
+    aax.set_title('Recall: '+str.format('{0:.2f}',recall) + '| Precision: '+str.format('{0:.2f}',precision))
+    aax.legend(loc='best',fancybox=True)
+    aax.grid()
+    aax.set_axisbelow(True)
 
-    plt.savefig('../Output/dataset.png')
-    plt.show()
+    ffig.savefig('../Output/dataset.png')
+    cp.show()
     plt.close('all')
+
+
+    sys.exit()
+
+    '''Everything below here is redundant in current build.'''
+
 
 
 ####---SAVING STUFF INTO A PANDAS LIBRARY

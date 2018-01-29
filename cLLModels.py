@@ -22,13 +22,15 @@ class LLModels:
         try: self.locx1 = np.where(np.array(_labels)=="$x1$")[0][0]
         except: pass
 
-
-
-    def lorentzian(self, (x0, gamma)):
-        '''A simple lortenzian in x space'''
-        #Calculating the likelihood in the X direction
-        lnLx = 2*np.log(gamma) - np.log(np.pi*gamma) - np.log((self.x-x0)**2 + gamma**2)
-        return lnLx
+    def lorentzian(self, (x0, gamma), dim='x'):
+        '''A simple lortenzian in x or y space'''
+        if dim == 'y':
+            #Calculating the likelihood in the X direction
+            lnL = 2*np.log(gamma) - np.log(np.pi*gamma) - np.log((self.y-x0)**2 + gamma**2)
+        if dim == 'x':
+            #Calculating the likelihood in the X direction
+            lnL = 2*np.log(gamma) - np.log(np.pi*gamma) - np.log((self.x-x0)**2 + gamma**2)
+        return lnL
 
 
 ####---ADDITIONAL MODELS FROM RGBb
