@@ -8,40 +8,28 @@ class LLModels:
         self.x = _x
         self.y = _y
 
-        '''This snippet of hard-code finds classifies the indices of the various
-        free parameters to allow for use of this class in multiple fitting codes.
-        '''
-        try: self.locmu = np.where(np.array(_labels)==r"$\mu$")[0][0]
-        except: pass
-        try: self.locsig = np.where(np.array(_labels)==r"$\sigma$")[0][0]
-        except: pass
-        try: self.locgamma = np.where(np.array(_labels)==r"$\gamma$")[0][0]
-        except: pass
-        try: self.locx0 = np.where(np.array(_labels)=="$x0$")[0][0]
-        except: pass
-        try: self.locx1 = np.where(np.array(_labels)=="$x1$")[0][0]
-        except: pass
-
     def lorentzian(self, (x0, gamma), dim='x'):
         '''A simple lortenzian in x or y space'''
         if dim == 'y':
-            #Calculating the likelihood in the X direction
+            #Calculating the likelihood in the Y direction
             lnL = 2*np.log(gamma) - np.log(np.pi*gamma) - np.log((self.y-x0)**2 + gamma**2)
         if dim == 'x':
             #Calculating the likelihood in the X direction
             lnL = 2*np.log(gamma) - np.log(np.pi*gamma) - np.log((self.x-x0)**2 + gamma**2)
         return lnL
 
-
-####---ADDITIONAL MODELS FROM RGBb
-    def gauss_x(self, p):
+    def gaussian(self, (mu, sig), dim='x'):
         '''A simple gaussian in x space'''
-        mu = p[self.locmu]
-        sig = p[self.locsig]
+        if dim == 'y':
+            #Calculating the likelihood in the Y direction
+            lnL = -0.5 * (((mu - self.y) / sig)**2 + 2*np.log(sig) +np.log(2*np.pi))
+        if dim == 'x':
+            #Calculating the likelihood in the X direction
+            lnL = -0.5 * (((mu - self.x) / sig)**2 + 2*np.log(sig) +np.log(2*np.pi))
+        return lnL
 
-        #Calculating the likelihood in the X direction
-        lnLx = -0.5 * (((mu - self.x) / sig)**2 + 2*np.log(sig) +np.log(2*np.pi))
-        return lnLx
+
+####---ADDITIONAL MODELS FROM RGBb (not yet adapted to new system)
 
     def exp_x(self, p):
         '''A normalised rising exponential probability in x space'''

@@ -112,6 +112,7 @@ def get_values():
 
     '''Errors not included in current run'''
     # df = get_errors(df, DR=2)
+    df = df[(df.M_ks > -2.0) & (df.M_ks < -1.0)]
     df = df[0:10000]
 
     return df.M_ks.values, df.M_j.values, df.stage, df
@@ -126,8 +127,10 @@ class cLikelihood:
     #Likelihood for the 'foreground'
     def lnlike_fg(self, p):
         return self.Model.lorentzian(p[0:2]) + self.Model.lorentzian(p[4:6],dim='y')
+        # return self.Model.lorentzian(p[0:2]) + self.Model.lorentzian(p[4:6],dim='y')
 
     def lnlike_bg(self, p):
+        # return self.Model.lorentzian(p[2:4]) + self.Model.lorentzian(p[6:8],dim='y')
         return self.Model.lorentzian(p[2:4]) + self.Model.lorentzian(p[6:8],dim='y')
 
     def lnprob(self, p):
@@ -250,29 +253,49 @@ if __name__ == '__main__':
     Jx0guess = b[np.argmax(n)]
 
 ####---SETTING UP MCMC
-    labels_mc = ["$x0 (Ks)$", r"$\gamma$ (Ks)",\
-                "$x1$(Ks)", r"$\mu$(Ks)",\
-                "$x0 (J)$", r"$\gamma$ (J)",\
-                "$x1$(J)", r"$\mu$(J)",\
-                "$Q$"]
-    start_params = np.array([Ksx0guess, 0.02,   #Foreground params in Ks
-                            -1.56, 0.1,         #Background params in Ks
-                            Jx0guess, 0.02,     #Foreground params in J
-                            -0.85, 0.1,         #Background params in J
-                            0.5])              #Mixture model param
-    bounds = [(-1.7,-1.6), (0.01,0.8),
-                (-1.6,-1.5), (0.08, 0.2),
-                (-1.1,-0.9), (0.01,0.8),
-                (-0.9,-0.8), (0.08, 0.2),
-                (0, 1)]
+    style = 'lors'
+    if style == 'lors':
+        labels_mc = ["$x0 (Ks)$", r"$\gamma0$(Ks)",\
+                    "$x1$(Ks)", r"$\gamma1$(Ks)",\
+                    "$x0 (J)$", r"$\gamma0$(J)",\
+                    "$x1$(J)", r"$\mu$(J)",\
+                    "$Q$"]
+        start_params = np.array([Ksx0guess, 0.02,   #Foreground params in Ks
+                                -1.56, 0.1,         #Background params in Ks
+                                Jx0guess, 0.05,     #Foreground params in J
+                                -0.93, 0.1,         #Background params in J
+                                0.5])              #Mixture model param
+        bounds = [(-1.7,-1.6), (0.01,0.8),
+                    (-1.6,-1.5), (0.08, 0.2),
+                    (-1.1,-0.9), (0.01,0.8),
+                    (-0.96,-0.9), (0.08, 1.2),
+                    (0, 1)]
+    if style == 'notlors':
+        labels_mc = ["$x0 (Ks)$", r"$\gamma$ (Ks)",\
+                    r"$\mu$(Ks)", r"$\sigma$(Ks)",\
+                    "$x0 (J)$", r"$\gamma$ (J)",\
+                    r"$\mu$(Ks)", r"$\sigma$(Ks)",\
+                    "$Q$"]
+        start_params = np.array([Ksx0guess, 0.02,   #Foreground params in Ks
+                                -1.58, 0.14,         #Background params in Ks
+                                Jx0guess, 0.05,     #Foreground params in J
+                                -0.93, 0.1,         #Background params in J
+                                0.5])              #Mixture model param
+        bounds = [(-1.7,-1.63), (0.01,0.8),
+                    (-1.63,-1.5), (0.08, 0.2),
+                    (-1.1,-1.0), (0.01,0.8),
+                    (-0.96,-0.9), (0.08, 1.2),
+                    (0, 1)]
 
 ####---CHECKING MODELS BEFORE RUN
     #Getting other probability functions
     ModeLLs = cLLModels.LLModels(x, y, labels_mc)
     lor_Ks_fg = np.exp(ModeLLs.lorentzian(start_params[0:2]))
     lor_Ks_bg = np.exp(ModeLLs.lorentzian(start_params[2:4]))
+    # lor_Ks_bg = np.exp(ModeLLs.gaussian(start_params[2:4]))
     lor_J_fg = np.exp(ModeLLs.lorentzian(start_params[4:6], dim='y'))
     lor_J_bg = np.exp(ModeLLs.lorentzian(start_params[6:8], dim='y'))
+    # lor_J_bg = np.exp(ModeLLs.gaussian(start_params[6:8], dim='y'))
 
     #Visualising the probability distributions
     fig = probability_plot(x, y, df, bins, Ksx0guess, Jx0guess, lor_Ks_fg, lor_Ks_bg, lor_J_fg, lor_J_bg)
@@ -307,16 +330,44 @@ if __name__ == '__main__':
         std[idx] = np.std(chain[:,idx])
 
     #Calling probability functions with results
-    lor_x = np.exp(ModeLLs.lorentzian(res[0:2]))
-    gauss_x = np.exp(ModeLLs.lorentzian(res[2:4]))
+    lor_Ks_fg = np.exp(ModeLLs.lorentzian(res[0:2]))
+    # lor_Ks_bg = np.exp(ModeLLs.lorentzian(res[2:4]))
+    lor_Ks_bg = np.exp(ModeLLs.gaussian(res[2:4]))
+    lor_J_fg = np.exp(ModeLLs.lorentzian(res[4:6], dim='y'))
+    # lor_J_bg = np.exp(ModeLLs.lorentzian(res[6:8], dim='y'))
+    lor_J_bg = np.exp(ModeLLs.gaussian(res[6:8], dim='y'))
 
-    fig = probability_plot(x, y, df, bins, res[0], lor_x, gauss_x)
+    fig = probability_plot(x, y, df, bins, res[0], res[4], lor_Ks_fg, lor_Ks_bg, lor_J_fg, lor_J_bg)
     fig.savefig('Output/visual_result.png')
 
     print('Calculating posteriors...')
     lnK, fg_pp = Fit.log_bayes()
-    mask = lnK > 1
-    Fit.dump()
+    sys.exit()
+
+    #Calculate recall vs precision for various Kass+Raftery94 cut off scales
+    recall, precision = [], []
+    for lim in np.linspace(lnK.min(),lnK.max(),1000):
+        mask = lnK > lim
+        cheb_correct = len(x[mask][labels[mask]==4])
+        cheb_total = len(x[labels==4])
+        identified_total = len(x[mask])
+        recall.append(float(cheb_correct)/float(cheb_total))
+        try:
+            precision.append(float(cheb_correct)/float(identified_total))
+        except:
+            precision.append(0.)
+    f, a = plt.subplots()
+    col = a.scatter(recall, precision, c=np.linspace(lnK.min(),lnK.max(),1000))
+    a.axhline(0.9,c='r',label='0.9 precision')
+    a.set_xlabel('Recall')
+    a.set_ylabel('Precision')
+    a.grid()
+    a.set_axisbelow(True)
+    f.colorbar(col, label='lnK cut-off point')
+    f.savefig('Output/precisionvsrecall.png')
+    plt.show()
+
+    mask = lnK > 3
 
 ####---PLOTTING RESULTS
 
@@ -354,12 +405,12 @@ if __name__ == '__main__':
     aax.grid()
     aax.set_axisbelow(True)
 
-    ffig.savefig('../Output/dataset.png')
+    ffig.savefig('Output/dataset.png')
     cp.show()
     plt.close('all')
 
-
     sys.exit()
+    Fit.dump()
 
     '''Everything below here is redundant in current build.'''
 
