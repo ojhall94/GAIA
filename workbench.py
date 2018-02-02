@@ -25,6 +25,8 @@ from sklearn import linear_model
 import scipy.stats as stats
 import scipy.misc as misc
 
+import ClosePlots as cp
+
 def get_values():
     # sfile = glob.glob('../data/TRILEGAL_sim/*.all.*.txt')[0]
     sfile = glob.glob('../data/TRILEGAL_sim/*all*.txt')[0]
@@ -94,26 +96,64 @@ def get_errors(df):
 
 
 if __name__ == '__main__':
+    plt.close('all')
     sfile = glob.glob('../Cuts_Data/cuts_MH_JKs_logg.txt')[0]
     # sfile = glob.glob('../data/Ben_Fun/TRI3*')[0]
+    # sfile = glob.glob('../data/TRILEGAL_sim/*all*.txt')[0]
     odf = pd.read_csv(sfile, sep='\s+')
 
     labels = odf.stage
+    cheb = (labels==4)# & (odf.logAge > 9.4)
+    df = odf[:]
+
+    numplots = 5
+    fig, ax = plt.subplots(numplots,2,sharex=True)
+    i = 0
+    for lo, hi in zip(np.linspace(-0.5,.5-1./numplots,numplots),np.linspace(-.5+1./numplots,.5,numplots)):
+        tdf = df[(df['[M/H]'] > lo) & (df['[M/H]'] < hi)]
+        ax[i,0].hist(tdf.M_ks,histtype='step',bins='sqrt')
+        ax[i,0].set_title('Ks: '+str(np.round(lo,2))+r"$<$[M/H]$<$"+str(np.round(hi,2)))
+        ax[i,1].hist(tdf.M_j,histtype='step',bins='sqrt')
+        ax[i,1].set_title('J: '+str(np.round(lo,2))+r"$<$[M/H]$<$"+str(np.round(hi,2)))
+
+        i += 1
+    fig.tight_layout()
+    plt.show()
+    sys.exit()
+    rgb = (labels!=4)
 
     '''Correct data'''
     odf['Aks'] = 0.114*odf.Av #Cardelli+1989>-
     odf['M_ks'] = odf.Ks - odf['m-M0'] - odf.Aks
     odf['Aj'] = 0.282*odf.Av
     odf['M_j'] = odf.J - odf['m-M0'] - odf.Aj
-    odf['JKs']
-
-    '''Set first order cuts on data'''
-    odf = odf[odf.M_ks < -0.5]
-    odf = odf[odf.M_ks > -2.5]
-    odf = odf[odf.Ks < 15.]
-    odf = odf[odf.Ks > 6.]
-
+    odf['JKs'] = odf.J - odf.Ks
+    odf = odf[odf.M_ks < -1.4]
+    odf = odf[odf.M_ks > -2.0]
+    # odf = odf[odf.Mact < 1.5]
     df = odf[:]
+
+    fig, ax = plt.subplots()
+    # plt.scatter(df.logTe,df.logL,s=3,c=df['[M/H]'])
+    # plt.scatter(df.logTe,df.logL,s=3,c=df.Mact)
+    a1 = ax.scatter(df.logTe,df.logL,s=3,c=df.Mact)
+    fig.gca().invert_xaxis()
+    fig.colorbar(a1)
+
+    fig2, ax2 = plt.subplots()
+    # plt.scatter(df.logTe,df.logL,s=3,c=df['[M/H]'])
+    # plt.scatter(df.logTe,df.logL,s=3,c=df.Mact)
+    a2 = ax2.scatter(df.M_ks,df.Ks,s=3,c=df.Mact)
+    fig2.colorbar(a2)
+
+    bins = int(np.sqrt(len(df.M_ks)))
+    hig, hax = plt.subplots(3,sharex=True)
+    hax[0].hist(df.M_ks,histtype='step',bins=bins)
+    hax[1].hist(df.M_ks[cheb],histtype='step',bins=int(np.sqrt(len(df.M_ks[cheb]))))
+    hax[2].hist(df.M_ks[rgb],histtype='step',bins=int(np.sqrt(len(df.M_ks[rgb]))))
+    cp.show()
+    sys.exit()
+
 
 
     fig, ax = plt.subplots()
