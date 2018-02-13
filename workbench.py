@@ -99,7 +99,7 @@ if __name__ == '__main__':
     plt.close('all')
     sfile = glob.glob('../Cuts_Data/cuts_MH_JKs_logg.txt')[0]
     # sfile = glob.glob('../data/Ben_Fun/TRI3*')[0]
-    # sfile = glob.glob('../data/TRILEGAL_sim/*all*.txt')[0]
+    # sfile = glob.glob('../data/TRILEGAL_sim/*all*.txt')[0]o
     odf = pd.read_csv(sfile, sep='\s+')
 
     labels = odf.stage
