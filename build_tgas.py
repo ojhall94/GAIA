@@ -6,6 +6,7 @@ import tempfile
 import subprocess
 import shutil
 import gzip
+from astropy.table import Table
 
 import barbershop
 import glob
@@ -14,6 +15,64 @@ import sys
 
 '''A script that downloads TGAS data for me,
 totally stolen off Jo Bovys gaia_tools.'''
+
+def get_TGAS(dirloc):
+    #Check the directory exists
+    if os.path.isdir(dirloc + 'Gaia_TGAS') == False:
+        print('Building storage directories...')
+        os.makedirs(dirloc+'Gaia_TGAS')
+
+    #Building local and remote paths
+    local = [os.path.join(dirloc, 'Gaia_TGAS', 'TgasSource_000-000-%03i.csv.gz' % ii)
+                for ii in range(16)]
+    remote = [os.path.join('http://cdn.gea.esac.esa.int','Gaia','tgas_source','csv',
+                'TgasSource_000-000-%03i.csv.gz' % ii) for ii in range(16)]
+
+    #Download the data
+    for localpath, remotepath in list(zip(local, remote)):
+        #Check data doesnt already exist
+        if not os.path.isfile(localpath):
+            download(localpath, remotepath, verbose=True)
+        else:
+            sys.stdout.write('File %s already exists locally ... \n' % (os.path.basename(localpath)))
+            sys.stdout.flush()
+
+def get_2MASSxTGAS(dirloc):
+    #Check the directory exists
+    if os.path.isdir(dirloc + '2MASSxTGAS') == False:
+        print('Building storage directories...')
+        os.makedirs(dirloc+'2MASSxTGAS')
+
+    localpath = os.path.join(dirloc, '2MASSxTGAS', 'tgas-matched-2mass.fits.gz')
+    remotepath = 'http://portal.nersc.gov/project/cosmo/temp/dstn/gaia/tgas-matched-2mass.fits.gz'
+
+    if not os.path.isfile(localpath):
+        download(localpath, remotepath, verbose=True)
+    else:
+        sys.stdout.write('File %s already exists locally ... \n' % (os.path.basename(localpath)))
+        sys.stdout.flush()
+
+
+def get_DR2(dirloc):
+    #Check the directory exists
+    if os.path.isdir(dirloc + 'Gaia_DR2') == False:
+        print('Building storage directories...')
+        os.makedirs(dirloc+'Gaia_DR2')
+
+    #Building local and remote paths
+    local = [os.path.join(dirloc, 'Gaia_DR2', 'DR2_000-000-%03i.csv' % ii)
+                for ii in range(16)]
+    remote = [os.path.join('http://cdn.gea.esac.esa.int','Gaia','DR2','csv',
+                'DR2_000-000-%03i.csv.gz' % ii) for ii in range(16)]
+
+    #Download the data
+    for localpath, remotepath in list(zip(local, remote)):
+        if not os.path.isfile(localpath):
+            download(localpath, remotepath, verbose=True)
+        else:
+            sys.stdout.write('File %s already exists locally ... \n' % (os.path.basename(localpath)))
+            sys.stdout.flush()
+
 
 def download(localpath, remotepath, verbose=False):
     sys.stdout.write('\r'+"Downloading file %s ...\r" % (os.path.basename(remotepath)))
@@ -70,64 +129,38 @@ def download(localpath, remotepath, verbose=False):
 
     return None
 
-def unzip(sfile, sep = ',', columns=None):
+def unzip(sfile, sep = ',', columns=None, check_info=False):
     '''A simple function that returns a pandas dataframe from a gzipped .csv
     file, and optionally returns chose columns '''
     file = gzip.open(sfile, 'rb')
-    if columns == None:
-        return pd.read_csv(file, sep=sep)
 
+    if '.csv' in os.path.basename(sfile):
+        if check_info:
+            print(pd.read_csv(file, sep=sep).info())
+
+        if columns == None:
+            return pd.read_csv(file, sep=sep)
+        else:
+            return pd.read_csv(file, sep=sep, usecols=columns)
+
+    elif '.fits' in os.path.basename(sfile):
+        dat = Table.read(sfile, format='fits')
+        if check_info:
+            print(dat.info())
+        return dat.to_pandas()[columns]
     else:
-        return pd.read_csv(file, sep=sep, usecols=columns)
-
-def get_TGAS(dirloc):
-
-    #Check the directory exists
-    if os.path.isdir(dirloc + 'Gaia_TGAS') == False:
-        print('Building storage directories...')
-        os.makedirs(dirloc+'Gaia_TGAS')
-
-    #Building local and remote paths
-    local = [os.path.join(dirloc, 'Gaia_TGAS', 'TgasSource_000-000-%03i.csv.gz' % ii)
-                for ii in range(16)]
-    remote = [os.path.join('http://cdn.gea.esac.esa.int','Gaia','tgas_source','csv',
-                'TgasSource_000-000-%03i.csv.gz' % ii) for ii in range(16)]
-
-    #Download the data
-    for localpath, remotepath in list(zip(local, remote)):
-        #Check data doesnt already exist
-        if not os.path.isfile(localpath):
-            download(localpath, remotepath, verbose=True)
-        else:
-            sys.stdout.write('File %s already exists locally ... \n' % (os.path.basename(localpath)))
-            sys.stdout.flush()
-
-def get_DR2(dirloc):
-    #Check the directory exists
-    if os.path.isdir(dirloc + 'Gaia_DR2') == False:
-        print('Building storage directories...')
-        os.makedirs(dirloc+'Gaia_DR2')
-
-    #Building local and remote paths
-    local = [os.path.join(dirloc, 'Gaia_DR2', 'DR2_000-000-%03i.csv' % ii)
-                for ii in range(16)]
-    remote = [os.path.join('http://cdn.gea.esac.esa.int','Gaia','DR2','csv',
-                'DR2_000-000-%03i.csv.gz' % ii) for ii in range(16)]
-
-    #Download the data
-    for localpath, remotepath in list(zip(local, remote)):
-        if not os.path.isfile(localpath):
-            download(localpath, remotepath, verbose=True)
-        else:
-            sys.stdout.write('File %s already exists locally ... \n' % (os.path.basename(localpath)))
-            sys.stdout.flush()
-
+        print('Filetype not recognised (currently only .fits and .csv supported)')
 
 if __name__ == "__main__":
     dirloc = '/home/oliver/PhD/Catalogues/'
     get_TGAS(dirloc)
+    get_2MASSxTGAS(dirloc)
+
 
     ll = os.path.join(dirloc, 'Gaia_TGAS','TgasSource_000-000-000.csv.gz')
-
     columns = ['hip','tycho2_id','solution_id','parallax','parallax_error','phot_g_mean_mag']
     df = unzip(ll, sep=',', columns=columns)
+
+    tt = os.path.join(dirloc, '2MASSxTGAS','tgas-matched-2mass.fits.gz')
+    columns = ['ra', 'dec']
+    twomass = unzip(tt, columns=columns, check_info=True)
