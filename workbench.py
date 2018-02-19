@@ -119,7 +119,7 @@ if __name__ == '__main__':
         i += 1
     fig.tight_layout()
     plt.show()
-    sys.exit()
+
     rgb = (labels!=4)
 
     '''Correct data'''
@@ -152,7 +152,6 @@ if __name__ == '__main__':
     hax[1].hist(df.M_ks[cheb],histtype='step',bins=int(np.sqrt(len(df.M_ks[cheb]))))
     hax[2].hist(df.M_ks[rgb],histtype='step',bins=int(np.sqrt(len(df.M_ks[rgb]))))
     cp.show()
-    sys.exit()
 
 
 
