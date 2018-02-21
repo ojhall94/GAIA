@@ -6,13 +6,16 @@ import tempfile
 import subprocess
 import shutil
 import gzip
-from astropy.table import Table
 
-import requests
+from astroquery.simbad import Simbad
+from astropy.table import Table
+from tqdm import tqdm
+tqdm.monitor_interval = 0
 
 import barbershop
 import glob
 import os
+import time
 import sys
 
 '''A script that downloads TGAS data for me,
@@ -178,74 +181,109 @@ def unzip(sfile, sep = ',', columns=None, check_info=False):
     else:
         print('Filetype not recognised (currently only .fits, .csv and .txt supported)')
 
-def query_simbad():
-    object_name = '16 Cyg A'
+class query_simbad_oids():
+    def __init__(self):
+        self.timer = 0.
+        self.queries = 0
+        self.reset = False
 
-    results_table = Simbad.query_objectsids(object_name)
+    def __call__(self, object_name):
 
-    verbose=True
-    SIMBAD_URL = 'http://' + 'simbad.u-strasbg.fr' +'/simbad/sim_script'
-    TIMEOUT = 60
+        if self.queries == 0:
+            self.t1 = time.time()
 
-    verify = True
-    auth = True
-    stream = False
+        if self.queries == 6:
+            wait = True
+            while wait:
+                sys.stdout.write('\rtick tock tick tock\r')
+                sys.stdout.flush()
+                if time.time() - self.t1 > 1.2:
+                    wait = False
+                    self.reset = True
 
-    '''From ..query import BaseQuery, which has the _request function'''
+        #Make the query
+        results_table = Simbad.query_objectids(object_name)
+        self.queries += 1
 
-    request_payload = dict(script="\n".join(('format object "%IDLIST"',
-                                            'query id %s' % object_name)))
+        if self.reset:
+            self.queries = 0
+            self.reset = False
 
-    session = requests.Session()
+        try:
+            return pd.DataFrame(np.array(results_table))
 
+        except ValueError:
+            return 'noentry'
 
-    '''
-    method = 'POST'
-    url = SIMBAD_URL
-    data = request_payload
-    timeout = TIMEOUT
+def collect_oids(df):
+    df['2MASS'] = np.nan
+    df['KIC'] = np.nan
 
-    Lets now save for now, lets just call the data into python.
-    '''
-    response = session.request('POST', SIMBAD_URL, data=request_payload, timeout=TIMEOUT)
+    #Looping over each entry in TGAS
+    query = query_simbad_oids()
 
-    requests.session().session.request(method, url, data=data, timeout=timeout, auth=auth, verify=verify)
+    for idx in tqdm(range(len(df))):
+        object_name = 'Gaia DR1 '+str(df.source_id[idx])
+        # time.sleep(1)
+        oids = query(object_name)
 
+        try:
+            #Match 2MASS and KIC IDs to the gaia dr1 id
+            for odx in range(len(oids)):
+                oid = oids.ID.loc[odx]  #Pull out the individual string
+                if "2MASS" in oid:      #Assign 2MASS ID if it exists
+                    df['2MASS'].loc[idx] = oid[6:]
+                if "KIC" in oid:        #Assign KIC ID if it exists
+                    df['KIC'][idx] = oid[4:]
 
-    # query = AstroQuery(method, url, params=None, data=data, headers=None, files=None, timeout=timeout)
-    # response = query.request(self._session, stream=stream, auth=auth, verify=verify)
+        except AttributeError:
+            print(oids)
+            pass
 
-class AstroQuery(object):
-    def __init__(self, method, url, data, timeout):
-        self.method = method
-        self.url = url
-        self.data = data
-        self.timeout=timeout
-
-
+    return df
 
 if __name__ == "__main__":
-
-
-
-
     dirloc = '/home/oliver/PhD/Catalogues/'
     get_TGAS(dirloc)
     get_KIC(dirloc)
+
+    columns = ['hip','tycho2_id','source_id','parallax','parallax_error','phot_g_mean_mag']
+
+    files = glob.glob(dirloc+'Gaia_TGAS/*.csv.gz')
+    df0 = unzip(files[0], sep=',', columns=columns)
+    df1 = unzip(files[1], sep=',', columns=columns)
+    df2 = unzip(files[2], sep=',', columns=columns)
+    df3 = unzip(files[3], sep=',', columns=columns)
+    df4 = unzip(files[4], sep=',', columns=columns)
+    df5 = unzip(files[5], sep=',', columns=columns)
+    df6 = unzip(files[6], sep=',', columns=columns)
+    df7 = unzip(files[7], sep=',', columns=columns)
+    df8 = unzip(files[8], sep=',', columns=columns)
+    df9 = unzip(files[9], sep=',', columns=columns)
+    df10 = unzip(files[10], sep=',', columns=columns)
+    df11 = unzip(files[11], sep=',', columns=columns)
+    df12 = unzip(files[12], sep=',', columns=columns)
+    df13 = unzip(files[13], sep=',', columns=columns)
+    df14 = unzip(files[14], sep=',', columns=columns)
+    df15 = unzip(files[15], sep=',', columns=columns)
+
+    tgas = pd.concat([df1, df2, df3, df4, df5, df6, df7, df8, df9, df10, df11, df12, df13, df14, df15])
+    tgas = tgas.reset_index()
+
+    outloc = os.path.join(dirloc, 'Gaia_TGAS', 'tgas.csv.gz')
+    tgas.to_csv(outloc, compression='gzip')
+
+
+    sys.exit()
+
+    df = collect_oids(df)   #Grab 2MASS and KIC oids from SIMBAD
 
     #http://archive.stsci.edu/kepler/kic10/help/quickcol.html
     kk = os.path.join(dirloc, 'KIC', 'kic.txt.gz')
     columns = ['kic_kepler_id']
     kic = unzip(kk, sep='|', columns=columns)
 
-    ll = os.path.join(dirloc, 'Gaia_TGAS','TgasSource_000-000-001.csv.gz')
-    columns = ['hip','tycho2_id','source_id','parallax','parallax_error','phot_g_mean_mag']
-    df = unzip(ll, sep=',', columns=columns)
 
-
-
-
-    sys.exit()
     get_2MASSxTGAS(dirloc)
     tt = os.path.join(dirloc, '2MASSxTGAS','tgas-matched-2mass.fits.gz')
     columns = ['ra', 'dec']
