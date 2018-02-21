@@ -8,6 +8,8 @@ import shutil
 import gzip
 from astropy.table import Table
 
+import requests
+
 import barbershop
 import glob
 import os
@@ -37,6 +39,23 @@ def get_TGAS(dirloc):
             sys.stdout.write('File %s already exists locally ... \n' % (os.path.basename(localpath)))
             sys.stdout.flush()
 
+def get_KIC(dirloc):
+    #Check the directory exists
+    if os.path.isdir(dirloc + 'KIC') == False:
+        print('Building storage directories...')
+        os.makedirs(dirloc+'KIC')
+
+    #Building local and remote paths
+    localpath = os.path.join(dirloc, 'KIC', 'kic.txt.gz')
+    remotepath = os.path.join('http://archive.stsci.edu/pub/kepler/catalogs/','kic.txt.gz')
+
+    #Check data doesnt already exist
+    if not os.path.isfile(localpath):
+        download(localpath, remotepath, verbose=True)
+    else:
+        sys.stdout.write('File %s already exists locally ... \n' % (os.path.basename(localpath)))
+        sys.stdout.flush()
+
 def get_2MASSxTGAS(dirloc):
     #Check the directory exists
     if os.path.isdir(dirloc + '2MASSxTGAS') == False:
@@ -51,7 +70,6 @@ def get_2MASSxTGAS(dirloc):
     else:
         sys.stdout.write('File %s already exists locally ... \n' % (os.path.basename(localpath)))
         sys.stdout.flush()
-
 
 def get_DR2(dirloc):
     #Check the directory exists
@@ -72,7 +90,6 @@ def get_DR2(dirloc):
         else:
             sys.stdout.write('File %s already exists locally ... \n' % (os.path.basename(localpath)))
             sys.stdout.flush()
-
 
 def download(localpath, remotepath, verbose=False):
     sys.stdout.write('\r'+"Downloading file %s ...\r" % (os.path.basename(remotepath)))
@@ -148,19 +165,88 @@ def unzip(sfile, sep = ',', columns=None, check_info=False):
         if check_info:
             print(dat.info())
         return dat.to_pandas()[columns]
+
+    elif '.txt' in os.path.basename(sfile):
+        if check_info:
+            print(pd.read_csv(file, sep=sep).info())
+
+        if columns == None:
+            return pd.read_csv(file, sep=sep)
+        else:
+            return pd.read_csv(file, sep=sep, usecols=columns)
+
     else:
-        print('Filetype not recognised (currently only .fits and .csv supported)')
+        print('Filetype not recognised (currently only .fits, .csv and .txt supported)')
+
+def query_simbad():
+    object_name = '16 Cyg A'
+
+    results_table = Simbad.query_objectsids(object_name)
+
+    verbose=True
+    SIMBAD_URL = 'http://' + 'simbad.u-strasbg.fr' +'/simbad/sim_script'
+    TIMEOUT = 60
+
+    verify = True
+    auth = True
+    stream = False
+
+    '''From ..query import BaseQuery, which has the _request function'''
+
+    request_payload = dict(script="\n".join(('format object "%IDLIST"',
+                                            'query id %s' % object_name)))
+
+    session = requests.Session()
+
+
+    '''
+    method = 'POST'
+    url = SIMBAD_URL
+    data = request_payload
+    timeout = TIMEOUT
+
+    Lets now save for now, lets just call the data into python.
+    '''
+    response = session.request('POST', SIMBAD_URL, data=request_payload, timeout=TIMEOUT)
+
+    requests.session().session.request(method, url, data=data, timeout=timeout, auth=auth, verify=verify)
+
+
+    # query = AstroQuery(method, url, params=None, data=data, headers=None, files=None, timeout=timeout)
+    # response = query.request(self._session, stream=stream, auth=auth, verify=verify)
+
+class AstroQuery(object):
+    def __init__(self, method, url, data, timeout):
+        self.method = method
+        self.url = url
+        self.data = data
+        self.timeout=timeout
+
+
 
 if __name__ == "__main__":
+
+
+
+
     dirloc = '/home/oliver/PhD/Catalogues/'
     get_TGAS(dirloc)
-    get_2MASSxTGAS(dirloc)
+    get_KIC(dirloc)
 
+    #http://archive.stsci.edu/kepler/kic10/help/quickcol.html
+    kk = os.path.join(dirloc, 'KIC', 'kic.txt.gz')
+    columns = ['kic_kepler_id']
+    kic = unzip(kk, sep='|', columns=columns)
 
-    ll = os.path.join(dirloc, 'Gaia_TGAS','TgasSource_000-000-000.csv.gz')
-    columns = ['hip','tycho2_id','solution_id','parallax','parallax_error','phot_g_mean_mag']
+    ll = os.path.join(dirloc, 'Gaia_TGAS','TgasSource_000-000-001.csv.gz')
+    columns = ['hip','tycho2_id','source_id','parallax','parallax_error','phot_g_mean_mag']
     df = unzip(ll, sep=',', columns=columns)
 
+
+
+
+    sys.exit()
+    get_2MASSxTGAS(dirloc)
     tt = os.path.join(dirloc, '2MASSxTGAS','tgas-matched-2mass.fits.gz')
     columns = ['ra', 'dec']
     twomass = unzip(tt, columns=columns, check_info=True)
