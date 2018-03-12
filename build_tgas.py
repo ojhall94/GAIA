@@ -74,6 +74,21 @@ def get_2MASSxTGAS(dirloc):
         sys.stdout.write('File %s already exists locally ... \n' % (os.path.basename(localpath)))
         sys.stdout.flush()
 
+def get_APOGEE(dirloc):
+    #Check the directory exists
+    if os.path.isdir(dirloc + 'APOGEE') == False:
+        print('Building storage directories...')
+        os.makedirs(dirloc+'APOGEE')
+
+    localpath = os.path.join(dirloc, 'APOGEE', 'APOGEE_13.fits')
+    remotepath = 'https://data.sdss.org/sas/dr13/apogee/spectro/redux/r6/allStar-l30e.2.fits'
+
+    if not os.path.isfile(localpath):
+        download(localpath, remotepath, verbose=True)
+    else:
+        sys.stdout.write('File %s already exists locally ... \n' % (os.path.basename(localpath)))
+        sys.stdout.flush()
+
 def get_DR2(dirloc):
     #Check the directory exists
     if os.path.isdir(dirloc + 'Gaia_DR2') == False:
@@ -149,37 +164,7 @@ def download(localpath, remotepath, verbose=False):
 
     return None
 
-def unzip(sfile, sep = ',', columns=None, check_info=False):
-    '''A simple function that returns a pandas dataframe from a gzipped .csv
-    file, and optionally returns chose columns '''
-    file = gzip.open(sfile, 'rb')
 
-    if '.csv' in os.path.basename(sfile):
-        if check_info:
-            print(pd.read_csv(file, sep=sep).info())
-
-        if columns == None:
-            return pd.read_csv(file, sep=sep)
-        else:
-            return pd.read_csv(file, sep=sep, usecols=columns)
-
-    elif '.fits' in os.path.basename(sfile):
-        dat = Table.read(sfile, format='fits')
-        if check_info:
-            print(dat.info())
-        return dat.to_pandas()[columns]
-
-    elif '.txt' in os.path.basename(sfile):
-        if check_info:
-            print(pd.read_csv(file, sep=sep).info())
-
-        if columns == None:
-            return pd.read_csv(file, sep=sep)
-        else:
-            return pd.read_csv(file, sep=sep, usecols=columns)
-
-    else:
-        print('Filetype not recognised (currently only .fits, .csv and .txt supported)')
 
 class query_simbad_oids():
     def __init__(self):
@@ -242,41 +227,61 @@ def collect_oids(df):
 
     return df
 
+def merge_dfs(files):
+    df0 = unzip(files[0], sep=',')
+    df1 = unzip(files[1], sep=',')
+    df2 = unzip(files[2], sep=',')
+    df3 = unzip(files[3], sep=',')
+    df4 = unzip(files[4], sep=',')
+    df5 = unzip(files[5], sep=',')
+    df6 = unzip(files[6], sep=',')
+    df7 = unzip(files[7], sep=',')
+    df8 = unzip(files[8], sep=',')
+    df9 = unzip(files[9], sep=',')
+    df10 = unzip(files[10], sep=',')
+    df11 = unzip(files[11], sep=',')
+    df12 = unzip(files[12], sep=',')
+    df13 = unzip(files[13], sep=',')
+    df14 = unzip(files[14], sep=',')
+    df15 = unzip(files[15], sep=',')
+
+    odf = pd.concat([df1, df2, df3, df4, df5, df6, df7, df8, df9, df10, df11, df12, df13, df14, df15])
+    odf = odf.reset_index()
+    return odf
+
+
 if __name__ == "__main__":
+
+    elsxtgas = pd.read_csv('Elsworth_x_TGAS.csv')
+    gaiakasc_overlap = pd.read_csv('gaia_apokasc_overlap.csv')
+    Yvonne_data = pd.read_csv('Yvonne_data.csv')
+    grdapokasc = pd.read_csv('GRDapokasc.csv')
+
     dirloc = '/home/oliver/PhD/Catalogues/'
     get_TGAS(dirloc)
     get_KIC(dirloc)
+    get_APOGEE(dirloc)
+    sys.exit()
 
-    columns = ['hip','tycho2_id','source_id','parallax','parallax_error','phot_g_mean_mag']
+    #THIS READS IN THE ELSWORTH SAMPLE AND ADDS 2MASS AND GAIA DR1 IDS
 
-    files = glob.glob(dirloc+'Gaia_TGAS/*.csv.gz')
-    df0 = unzip(files[0], sep=',', columns=columns)
-    df1 = unzip(files[1], sep=',', columns=columns)
-    df2 = unzip(files[2], sep=',', columns=columns)
-    df3 = unzip(files[3], sep=',', columns=columns)
-    df4 = unzip(files[4], sep=',', columns=columns)
-    df5 = unzip(files[5], sep=',', columns=columns)
-    df6 = unzip(files[6], sep=',', columns=columns)
-    df7 = unzip(files[7], sep=',', columns=columns)
-    df8 = unzip(files[8], sep=',', columns=columns)
-    df9 = unzip(files[9], sep=',', columns=columns)
-    df10 = unzip(files[10], sep=',', columns=columns)
-    df11 = unzip(files[11], sep=',', columns=columns)
-    df12 = unzip(files[12], sep=',', columns=columns)
-    df13 = unzip(files[13], sep=',', columns=columns)
-    df14 = unzip(files[14], sep=',', columns=columns)
-    df15 = unzip(files[15], sep=',', columns=columns)
-
-    tgas = pd.concat([df1, df2, df3, df4, df5, df6, df7, df8, df9, df10, df11, df12, df13, df14, df15])
-    tgas = tgas.reset_index()
-
-    outloc = os.path.join(dirloc, 'Gaia_TGAS', 'tgas.csv.gz')
-    tgas.to_csv(outloc, compression='gzip')
 
 
     sys.exit()
+    #THIS FINDS OIDS FOR ALL TGAS ENTRIES
+    columns = ['source_id']
+    tgas = unzip(dirloc+'Gaia_TGAS/tgas.csv.gz', columns=columns)
+    tgas = collect_oids(tgas)
+    outloc = os.path.join(dirloc, 'Gaia_TGAS', 'tgas_labeled.csv.gz')
+    tgas.to_csv(outloc, compression='gzip')
 
-    df = collect_oids(df)   #Grab 2MASS and KIC oids from SIMBAD
+    sys.exit()
+    #THIS MERGES TGAS INDIVIDUAL FILES INTO A SINGLE TGAS FILE
+    files = glob.glob(dirloc+'Gaia_TGAS/*.csv.gz')
+    tgas = merge_dfs(files)
+    outloc = os.path.join(dirloc, 'Gaia_TGAS', 'tgas.csv.gz')
+    tgas.to_csv(outloc, compression='gzip')
+    tgas = unzip(dirloc+'Gaia_TGAS/tgas.csv.gz', columns=columns)
 
     #http://archive.stsci.edu/kepler/kic10/help/quickcol.html
     kk = os.path.join(dirloc, 'KIC', 'kic.txt.gz')

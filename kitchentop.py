@@ -17,19 +17,16 @@ if __name__ == "__main__":
     dff['Aks'] = 0.114*dff.Av
     dff['M_ks'] = dff.Ksmag - dff.mu0 - dff.Aks
 
-    dff = dff[dff.M_ks < -0.5]
-    dff = dff[dff.M_ks > -2.5]
-    dff = dff[dff.Ksmag < 15.]
-    dff = dff[dff.Ksmag > 6.]
+    # dff = dff[dff.M_ks < -0.5]
+    # dff = dff[dff.M_ks > -2.5]
+    # dff = dff[dff.Ksmag < 15.]
+    # dff = dff[dff.Ksmag > 6.]
 
     print dff.info()
 
-    barber=barbershop.open(dff, 'M_ks','Ksmag')
+    barber=barbershop.open(dff, 'logTe','logL')
     barber.add_client('label',lower=4, upper=4)
     barber.add_client('Mass')
-    barber.add_client('M_H')
-    barber.add_client('logTe')
-    barber.histograms_on(x=True)
 
     plt.scatter(dff.logTe, dff.logL, c=dff.Mass)
 
