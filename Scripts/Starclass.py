@@ -20,6 +20,9 @@ class Star:
     An object class that stores and calls all astrophysical components
     necessary for finding a targets absolute magnitude in a given band.
 
+    Input:
+        _ID: List of star IDs for identification
+
     Returns:
         M (pandas dataframe): Absolute magnitude
         M_err (pandas dataframe): Error on above
