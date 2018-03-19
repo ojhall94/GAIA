@@ -21,6 +21,8 @@ class Star:
     An object class that stores and calls all astrophysical components
     necessary for finding a targets absolute magnitude in a given band.
 
+    NOTE: Make sure to input numpy arrays!
+
     Input:
         _ID: List of star IDs for identification
 
@@ -83,17 +85,7 @@ class Star:
         r = 1000/self.oo
         return 5*np.log10(r) - 5
 
-    def get_A(self):
-        #All values from Green+18
-        coeffs = pd.DataFrame({'g':3.384,'r':[2.483],'i':[1.838],'z':[1.414],'y':[1.126],'J':[0.650],'H':[0.327],'Ks':[0.161]})
-        #Check we have the conversion for this band of magnitudes
-        if not any(self.band in head for head in list(coeffs)):
-            print('The class cant handle this specific band yet.')
-            print('Please double check youve input the string correctly. The list of possible bands is:')
-            print(list(coeffs))
-            print('And you passed in: '+self.band)
-            sys.exit()
-
+    def get_Av(self):
         #Call the Bayestar catalogue
         bayestar = BayestarWebQuery(version='bayestar2017')
         coords = SkyCoord(self.ra.values*units.deg, self.dec.values*units.deg,
@@ -104,7 +96,20 @@ class Star:
         except:
             print('No Av values for this star. Set Av to 0. for now.')
             Av = 0.
-        return Av * coeffs[self.band].values
+        return Av
+
+    def get_Aband(self):
+        #All values from Green+18
+        coeffs = pd.DataFrame({'g':3.384,'r':[2.483],'i':[1.838],'z':[1.414],'y':[1.126],'J':[0.650],'H':[0.327],'Ks':[0.161]})
+        #Check we have the conversion for this band of magnitudes
+        if not any(self.band in head for head in list(coeffs)):
+            print('The class cant handle this specific band yet.')
+            print('Please double check youve input the string correctly. The list of possible bands is:')
+            print(list(coeffs))
+            print('And you passed in: '+self.band)
+            sys.exit()
+
+        return self.get_Av() * coeffs[self.band].values
 
     def get_error(self):
         #Case 0: No errors
@@ -138,11 +143,11 @@ class Star:
             return None
         m = self.m       #Call in the magnitude
         mu0 = self.get_mu0()  #Call in the distance modulus
-        A = self.get_A()      #Call in the extinction coefficient
+        Aband = self.get_Aband() #Call in the appropriate extinction coeff
 
         M_err = self.get_error()   #Propagate the error through
 
-        return m - mu0 - A, M_err
+        return m - mu0 - Aband, M_err
 
 if __name__ == '__main__':
     option = 0
@@ -166,9 +171,12 @@ if __name__ == '__main__':
         S.pass_parallax(df.par, df.par_err)
         S.pass_position(df.Glon,df.Glat,frame)
         S.pass_magnitude(df.imag, band='i')
-        AKs = S.get_A()
+        AKs = S.get_Aband()
         M, M_err = S.get_M()
 
+        df['AKs_green'] = S.get_Aband()
+        df['MKs'] = M
+        df['MKs_err'] = M_err
 
         plt.close()
         fig, ax = plt.subplots()
