@@ -94,6 +94,7 @@ class Star:
         try:
             Av = bayestar(coords, mode='median')
         except:
+            print('The Av values cant be downloaded for some reason.')
             print('No Av values for this star. Set Av to 0. for now.')
             Av = 0.
         return Av
@@ -150,7 +151,7 @@ class Star:
         return m - mu0 - Aband, M_err
 
 if __name__ == '__main__':
-    option = 0
+    option = 1
 
     if option == 0:
         sfile = glob.glob('../../data/Ben_Fun/TRI3*')[0]

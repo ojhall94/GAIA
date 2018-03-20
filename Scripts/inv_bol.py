@@ -60,7 +60,7 @@ class Astero_Clump:
         feh = self.core_df['kic_feh']
         BC = np.zeros(len(df))
         for idx in tqdm(range(len(df))):
-            BC[idx] = interp(np.array([self.Teff[idx], logg[idx], 0., Av[idx]]))
+            BC[idx] = interp(np.array([self.Teff[idx], logg[idx], feh[idx], Av[idx]]))
         return BC
 
     def get_Av(self):
@@ -88,36 +88,37 @@ if __name__ == "__main__":
     df = df.reset_index()
     print(len(df))
 
-    #Get 'True' Absmags
-    S = Star(df.KIC)
-    S.pass_parallax(df.astero_parallax)
-    S.pass_position(df.GLON, df.GLAT, frame='galactic')
-    S.pass_magnitude(df.kic_kmag,band='Ks')
-    Mtru, _ = S.get_M()
+    bands = ['Ks','J','H']
+    hawkvals = dict({'Ks':-1.61,'J':-0.93,'H':-1.46})
+    hawkerr = 0.01
+    df = df.rename(index=str, columns={'kic_kmag':'Ks','kic_jmag':'J','kic_hmag':'H'})
 
-    #Get asteroseismic absmags
-    AC = Astero_Clump(df, df.numax, df.Dnu, df.Teff)
-    Mast = AC.get_M(band='Ks')
+    for band in bands:
+        #Get 'True' Absmags
+        S = Star(df.KIC)
+        S.pass_parallax(df.astero_parallax)
+        S.pass_position(df.GLON, df.GLAT, frame='galactic')
+        S.pass_magnitude(df[band],band=band)
+        Mtru, _ = S.get_M()
 
-    '''Hawkins values are:
-    Ks: -1.61pm0.01
-    G: 0.55pm0.01
-    J: -0.93pm0.01
-    H: -1.46pm0.01
-    '''
+        #Get asteroseismic absmags
+        AC = Astero_Clump(df, df.numax, df.Dnu, df.Teff)
+        Mast = AC.get_M(band=band)
 
-    fig, ax = plt.subplots()
-    col = ax.scatter(Mast,df.kic_kmag,c=(Mtru-Mast)*100/Mtru, s=5,label='M astero')
-    ax.axvspan(-1.61-0.1,-1.61+0.1,alpha=.2,color='r',label='Hawkins')
-    ax.axvline(np.median(Mast),linestyle='-.',label='Median')
-    ax.legend()
-    fig.colorbar(col,label='Perc diff')
-    plt.show()
+        fig, ax = plt.subplots()
+        col = ax.scatter(Mast,df[band],c=(Mtru-Mast)*100/Mtru, s=5,label='M astero')
+        ax.axvspan(hawkvals[band]-0.1,hawkvals[band]+0.1,alpha=.2,color='r',label='Hawkins')
+        ax.axvline(np.median(Mast),linestyle='-.',label='Median')
+        ax.set_xlabel('M('+band+')')
+        ax.set_ylabel('m('+band+')')
+        ax.legend()
+        fig.colorbar(col,label='Perc diff')
+        fig.savefig('comparison_'+band+'.png')
+        plt.show()
 
-    sns.jointplot(Mast,df.kic_kmag)
-    plt.show()
-
-
+        sns.jointplot(Mast,df[band])
+        plt.savefig('jointplot_'+band+'.png')
+        plt.show()
 
     sys.exit()
     #Note, all values are returned in SI units, not solar values
