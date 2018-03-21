@@ -81,10 +81,13 @@ if __name__ == "__main__":
     df['M_err'] = AC.get_mass_err()/Msol
     df['L'] = AC.get_luminosity()/Lsol
     df['L_err'] = AC.get_luminosity_err()/Lsol
+    df['Mbol'] = AC.get_bolmag()
+    df['Mbol_err'] = AC.get_bolmag_err()
 
     #Cut low mass stars as recommended by Yvonne
     df = df[df.M > 0.8]
     df = df.reindex()
+    print(df.Mbol_err)
 
     plt.scatter(df.numax, df.R,s=5,zorder=1000)
     plt.errorbar(df.numax, df.R, xerr=df.numax_err, yerr=df.R_err, alpha=.3,color='grey', fmt=None,zorder=999)

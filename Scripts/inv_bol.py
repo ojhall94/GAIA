@@ -88,19 +88,21 @@ class Astero_Clump:
     def get_luminosity_err(self):
         term1 = (8*np.pi*stefboltz*self.get_radius()*self.Teff**4)**2 * self.get_radius_err()**2
         try:
-            term2 = (16*np.pi*stefboltz*self.get_radius()**2*self.Teff**5)**2 * self.Teff_err**2
+            term2 = (16*np.pi*stefboltz*self.get_radius()**2*self.Teff**3)**2 * self.Teff_err**2
         except TypeError: term2 = 0.
 
         sigL = np.sqrt(term1 + term2)
         return sigL
 
     def get_bolmag(self):
-        Mbol = Mbolsol - 2.5*np.log10(self.get_luminosity()/Lsol)
+        nLum = self.get_luminosity()/Lsol
+        Mbol = Mbolsol - 2.5*np.log10(nLum)
         return Mbol
 
     def get_bolmag_err(self):
-        term = -2.5 / (self.get_luminosity() * np.log(10))
-        sigMbol = np.sqrt(term**2*self.get_luminosity_err()**2)
+        nLum = self.get_luminosity()/Lsol
+        nLume = self.get_luminosity_err()/Lsol
+        sigMbol = np.sqrt( (-2.5/(nLum*np.log(10.)))**2*nLume**2)
         return sigMbol
 
     def get_bc(self, band):
