@@ -18,6 +18,7 @@ from Starclass import Star
 #Define solar parameters
 Rsol = 695700e3 #meters
 Tsol = 5778 #K
+Msol = 1.989e30 #Kg
 Numaxsol = 3090 #Huber et al 2011ish
 Dnusol = 135.1
 stefboltz = 5.670367e-8 #Wm-2K-4
@@ -38,13 +39,69 @@ class Astero_Clump:
         R = Rsol * (self.numax / Numaxsol) * (self.dnu / Dnusol)**(-2) * (self.Teff / Tsol)**(0.5)
         return R
 
+    def get_radius_err(self):
+        try:
+            term = (Rsol/Numaxsol)*(self.dnu/Dnusol)**(-2)*(self.Teff/Tsol)**(0.5)
+            drdnumax = term**2 * self.numax_err**2
+        except TypeError: drdnumax = 0.
+
+        try:
+            term = (Rsol/Dnusol**(-2))*(self.numax/Numaxsol)*(self.Teff/Tsol)**(0.5) * (-2*self.dnu**(-3))
+            drdnu = term**2 * self.dnu_err**2
+        except TypeError: drdnu = 0.
+
+        try:
+            term = (Rsol/Tsol**(0.5))*(self.numax/Numaxsol)*(self.dnu / Dnusol)**(-2) * 0.5*self.Teff**(-0.5)
+            drdt = term**2 * self.Teff_err**2
+        except TypeError: drdt = 0.
+
+        sigR = np.sqrt(drdnumax + drdnu + drdt)
+        return sigR
+
+    def get_mass(self):
+        M = Msol * (self.numax / Numaxsol)**3 * (self.dnu / Dnusol)**(-4) * (self.Teff / Tsol)**(1.5)
+        return M
+
+    def get_mass_err(self):
+        try:
+            term = (Msol/Numaxsol**3)*(self.dnu/Dnusol)**(-4)*(self.Teff/Tsol)**(1.5) * 3*self.numax**2
+            drdnumax = term**2 * self.numax_err**2
+        except TypeError: drdnumax = 0.
+
+        try:
+            term = (Msol/Dnusol**(-4))*(self.numax/Numaxsol)**3*(self.Teff/Tsol)**(1.5) * (-4*self.dnu**(-5))
+            drdnu = term**2 * self.dnu_err**2
+        except TypeError: drdnu = 0.
+
+        try:
+            term = (Msol/Tsol**(1.5))*(self.numax/Numaxsol)**3*(self.dnu / Dnusol)**(-4) * 1.5*self.Teff**(0.5)
+            drdt = term**2 * self.Teff_err**2
+        except TypeError: drt = 0.
+
+        sigM = np.sqrt(drdnumax + drdnu + drdt)
+        return sigM
+
     def get_luminosity(self):
         L = 4 * np.pi * stefboltz * self.get_radius()**2 * self.Teff**4
         return L
 
+    def get_luminosity_err(self):
+        term1 = (8*np.pi*stefboltz*self.get_radius()*self.Teff**4)**2 * self.get_radius_err()**2
+        try:
+            term2 = (16*np.pi*stefboltz*self.get_radius()**2*self.Teff**5)**2 * self.Teff_err**2
+        except TypeError: term2 = 0.
+
+        sigL = np.sqrt(term1 + term2)
+        return sigL
+
     def get_bolmag(self):
         Mbol = Mbolsol - 2.5*np.log10(self.get_luminosity()/Lsol)
         return Mbol
+
+    def get_bolmag_err(self):
+        term = -2.5 / (self.get_luminosity() * np.log(10))
+        sigMbol = np.sqrt(term**2*self.get_luminosity_err()**2)
+        return sigMbol
 
     def get_bc(self, band):
         bcmodel = h5py.File('/home/oliver/PhD/Catalogues/BCgrids/bcgrid.h5','r')#Huber+17
@@ -107,7 +164,7 @@ if __name__ == "__main__":
 
         fig, ax = plt.subplots()
         col = ax.scatter(Mast,df[band],c=(Mtru-Mast)*100/Mtru, s=5,label='M astero')
-        ax.axvspan(hawkvals[band]-0.1,hawkvals[band]+0.1,alpha=.2,color='r',label='Hawkins')
+        ax.axvspan(hawkvals[band]-hawkerr,hawkvals[band]+hawkerr,alpha=.2,color='r',label='Hawkins')
         ax.axvline(np.median(Mast),linestyle='-.',label='Median')
         ax.set_xlabel('M('+band+')')
         ax.set_ylabel('m('+band+')')
