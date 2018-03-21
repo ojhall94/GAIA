@@ -24,6 +24,7 @@ Dnusol = 135.1
 stefboltz = 5.670367e-8 #Wm-2K-4
 Mbolsol = 4.74  #Torres
 Lsol = 4 * np.pi * stefboltz * Rsol**2 * Tsol**4
+gsol = 274. #ms^2
 
 class Astero_Clump:
     def __init__(self, _core_df, _numax, _dnu, _Teff, _numax_err = None, _dnu_err = None, _Teff_err = None):
@@ -81,6 +82,24 @@ class Astero_Clump:
         sigM = np.sqrt(drdnumax + drdnu + drdt)
         return sigM
 
+    def get_logg(self):
+        g = gsol * (self.numax/Numaxsol) * (self.Teff/Tsol)**0.5
+        return np.log10(g)
+
+    def get_logg_err(self):
+        #First get error in g space
+        try:
+            term1 = ((gsol/Numaxsol)*(self.Teff/Tsol)**0.5) **2 * self.numax_err**2
+        except TypeError: term1 = 0.
+        try:
+            term2 = ((gsol/Tsol**(0.5)) * (self.numax/Numaxsol) * 0.5*self.Teff**(-0.5))**2 * self.Teff_err**2
+        except TypeError: term2 = 0.
+        sigg = np.sqrt(term1 + term2)
+
+        #Now convert to logg space
+        siglogg = sigg / (self.get_logg() * np.log(10))
+        return siglogg
+
     def get_luminosity(self):
         L = 4 * np.pi * stefboltz * self.get_radius()**2 * self.Teff**4
         return L
@@ -114,12 +133,13 @@ class Astero_Clump:
             np.array(bcmodel['avgrid'])),np.array(bcmodel[bands[band]]))
 
         #Gonna have to do this iteratively per star
-        Av = self.get_Av()
-        logg = self.core_df['log.g1']
-        feh = self.core_df['kic_feh']
-        BC = np.zeros(len(df))
-        for idx in tqdm(range(len(df))):
-            BC[idx] = interp(np.array([self.Teff[idx], logg[idx], feh[idx], Av[idx]]))
+        # Av = self.get_Av()
+        Teff = self.Teff.values
+        logg = self.get_logg().values
+        feh = self.core_df['[Fe/H]'].values
+        BC = np.zeros(len(self.core_df))
+        for idx in tqdm(range(len(self.core_df))):
+            BC[idx] = interp(np.array([Teff[idx], logg[idx], feh[idx], 0.]))
         return BC
 
     def get_Av(self):

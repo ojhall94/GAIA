@@ -24,6 +24,7 @@ Dnusol = 135.1
 stefboltz = 5.670367e-8 #Wm-2K-4
 Mbolsol = 4.74  #Torres
 Lsol = 4 * np.pi * stefboltz * Rsol**2 * Tsol**4
+loggsol = np.log10(274)
 
 def get_yu():
     #Read in Jie Yu
@@ -50,8 +51,6 @@ def get_yu():
     df['Teff_err'] = yu18['err_y'][HeB]
     df['[Fe/H]'] = yu18['Fe/H'][HeB]
     df['[Fe/H]_err'] = yu18['err.2_y'][HeB]
-
-
     return df
 
 
@@ -79,16 +78,29 @@ if __name__ == "__main__":
     df['R_err'] = AC.get_radius_err()/Rsol
     df['M'] = AC.get_mass()/Msol
     df['M_err'] = AC.get_mass_err()/Msol
+    df['logg'] = AC.get_logg()
+    df['logg_err'] = AC.get_logg_err()
     df['L'] = AC.get_luminosity()/Lsol
     df['L_err'] = AC.get_luminosity_err()/Lsol
     df['Mbol'] = AC.get_bolmag()
     df['Mbol_err'] = AC.get_bolmag_err()
+    # df['M_Ks'] = AC.get_M(band='Ks')
+    # df['M_J'] = AC.get_J(band='J')
+    # df['M_H'] = AC.get_H(band='H')
 
     #Cut low mass stars as recommended by Yvonne
     df = df[df.M > 0.8]
     df = df.reindex()
-    print(df.Mbol_err)
 
-    plt.scatter(df.numax, df.R,s=5,zorder=1000)
-    plt.errorbar(df.numax, df.R, xerr=df.numax_err, yerr=df.R_err, alpha=.3,color='grey', fmt=None,zorder=999)
-    plt.show()
+    barber = barbershop.open(df,'Mbol','numax')
+    barber.histograms_on(x=True)
+    barber.add_client('R')
+    barber.add_client('M')
+    barber.add_client('logg')
+    barber.add_client('L')
+    barber.add_client('Mbol')
+    barber.show_mirror()
+
+    # plt.scatter(df.numax, df.R,s=5,zorder=1000)
+    # plt.errorbar(df.numax, df.R, xerr=df.numax_err, yerr=df.R_err, alpha=.3,color='grey', fmt=None,zorder=999)
+    # plt.show()
