@@ -24,7 +24,7 @@ Dnusol = 135.1
 stefboltz = 5.670367e-8 #Wm-2K-4
 Mbolsol = 4.74  #Torres
 Lsol = 4 * np.pi * stefboltz * Rsol**2 * Tsol**4
-gsol = 274. #ms^2
+gsol = 27400. #cms^2
 
 class Astero_Clump:
     def __init__(self, _core_df, _numax, _dnu, _Teff, _numax_err = None, _dnu_err = None, _Teff_err = None):
@@ -142,13 +142,6 @@ class Astero_Clump:
             BC[idx] = interp(np.array([Teff[idx], logg[idx], feh[idx], 0.]))
         return BC
 
-    def get_Av(self):
-        S = Star(df.KIC)
-        S.pass_parallax(df.astero_parallax)
-        S.pass_position(df.GLON, df.GLAT, frame='galactic')
-        Av = S.get_Av()
-        return Av
-
     def get_M(self, band='Ks'):
         BC = self.get_bc(band)
         Mabs = self.get_bolmag() - BC
@@ -200,19 +193,3 @@ if __name__ == "__main__":
         plt.show()
 
     sys.exit()
-    #Note, all values are returned in SI units, not solar values
-    AC = Astero_Clump(df, df.numax, df.Dnu, df.Teff)
-    df['Lum'] = AC.get_luminosity()
-    df['logL'] = np.log10(df.Lum)
-    df['logTe'] = np.log10(df.Teff)
-
-
-
-    #Just check they keep lining up
-    fig, ax = plt.subplots(2,2)
-    ax[0,0].scatter(df.R2, AC.get_radius()/Rsol,zorder=1000)
-    ax[0,0].plot(df.R2, df.R2,c='r',linestyle='--',zorder=999)
-    ax[1,0].scatter(4 * np.pi * stefboltz * (df.R2*Rsol)**2 * df.Teff**4, AC.get_luminosity(),zorder=1000)
-    ax[1,0].plot(AC.get_luminosity(), AC.get_luminosity(),c='r',linestyle='--',zorder=999)
-    ax[0,1].scatter(AC.get_bolometric(),1000/df.parallax)
-    plt.show()
