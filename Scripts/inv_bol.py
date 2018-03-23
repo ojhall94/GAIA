@@ -97,7 +97,9 @@ class Astero_Clump:
         sigg = np.sqrt(term1 + term2)
 
         #Now convert to logg space
-        siglogg = sigg / (self.get_logg() * np.log(10))
+        g = gsol * (self.numax/Numaxsol) * (self.Teff/Tsol)**0.5
+        siglogg = sigg / (g * np.log(10))
+
         return siglogg
 
     def get_luminosity(self):

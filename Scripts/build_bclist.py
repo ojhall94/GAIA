@@ -77,28 +77,6 @@ def get_apogee():
 
 
 if __name__ == "__main__":
-    '''Spectra test run'''
-    import pylab as plt
-    from pystellibs import BaSeL, Kurucz
-
-    basel = BaSeL()
-    kurucz = Kurucz()
-    ap = (4., 3.5, 0., 0.02)
-    sb4 = basel.generate_stellar_spectrum(*(4., 3.5, 0., 0.02))
-    sb2 = basel.generate_stellar_spectrum(*(4.2, 3.5, 0., 0.02))
-    plt.figure()
-    plt.loglog(basel._wavelength, sb4, label='BaSeL logT = 4')
-    plt.loglog(basel._wavelength, sb2, label='BaSeL logT = 2')
-    plt.legend(frameon = False, loc='lower right')
-    plt.xlabel('Wavelength [{0}]'.format(basel.wavelength_unit))
-    plt.ylabel("Flux [{0}]".format(basel.flux_units))
-    # plt.xlim(800, 5e4)
-    # plt.ylim(1e25, 5e30)
-    plt.tight_layout()
-    plt.show()
-
-
-    sys.exit()
     '''Asteroseismology tester run'''
     #Read in Yu
     df = get_yu()
@@ -130,6 +108,13 @@ if __name__ == "__main__":
     plt.ylabel('Astero logg')
     plt.show()
 
+    plt.scatter(df.logg_err,df.ast_logg_err,s=3,zorder=1000)
+    plt.plot(df.logg_err,df.logg_err,c='r',alpha=.5,linestyle='--',zorder=998)
+    plt.xlabel('Yu+18')
+    plt.ylabel('Astero logg error')
+    plt.show()
+
+    sys.exit()
     plt.scatter(df.M,df.ast_M,s=3,zorder=1000)
     plt.errorbar(df.M,df.ast_M,xerr=df.M_err,yerr=df.ast_M_err,c='grey',alpha=.3,fmt=None)
     plt.plot(df.M,df.M,c='r',alpha=.5,linestyle='--',zorder=998)
@@ -143,6 +128,19 @@ if __name__ == "__main__":
     plt.xlabel('Yu+18')
     plt.ylabel('Astero radius')
     plt.show()
+
+    plt.scatter(df.M_err,df.ast_M_err,s=3,zorder=1000)
+    plt.plot(df.M_err,df.M_err,c='r',alpha=.5,linestyle='--',zorder=998)
+    plt.xlabel('Yu+18')
+    plt.ylabel('Astero mass error')
+    plt.show()
+
+    plt.scatter(df.R_err,df.ast_R_err,s=3,zorder=1000)
+    plt.plot(df.R_err,df.R_err,c='r',alpha=.5,linestyle='--',zorder=998)
+    plt.xlabel('Yu+18')
+    plt.ylabel('Astero radius error')
+    plt.show()
+
 
     sys.exit()
 
