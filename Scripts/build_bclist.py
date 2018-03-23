@@ -98,15 +98,6 @@ if __name__ == "__main__":
     plt.show()
 
 
-
-
-
-
-
-
-
-
-
     sys.exit()
     '''Asteroseismology tester run'''
     #Read in Yu

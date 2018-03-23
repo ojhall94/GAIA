@@ -114,8 +114,8 @@ class Astero_Clump:
         return sigL
 
     def get_bolmag(self):
-        nLum = self.get_luminosity()/Lsol
-        Mbol = Mbolsol - 2.5*np.log10(nLum)
+        Lzp = 3.0128e28 #Watts, zero point luminosity
+        Mbol = -2.5*np.log10(self.get_luminosity()/Lzp)
         return Mbol
 
     def get_bolmag_err(self):
@@ -136,11 +136,19 @@ class Astero_Clump:
         # Av = self.get_Av()
         Teff = self.Teff.values
         logg = self.get_logg().values
-        feh = self.core_df['[Fe/H]'].values
+        feh = self.core_df['kic_feh'].values
         BC = np.zeros(len(self.core_df))
+        Av = self.get_Av()
         for idx in tqdm(range(len(self.core_df))):
-            BC[idx] = interp(np.array([Teff[idx], logg[idx], feh[idx], 0.]))
+            BC[idx] = interp(np.array([Teff[idx], logg[idx], feh[idx], Av[idx]]))
         return BC
+
+    def get_Av(self):
+        S = Star(df.KIC)
+        S.pass_parallax(df.astero_parallax)
+        S.pass_position(df.GLON, df.GLAT, frame='galactic')
+        Av = S.get_Av()
+        return Av
 
     def get_M(self, band='Ks'):
         BC = self.get_bc(band)
