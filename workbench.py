@@ -25,6 +25,8 @@ from sklearn import linear_model
 import scipy.stats as stats
 import scipy.misc as misc
 
+import ClosePlots as cp
+
 def get_values():
     # sfile = glob.glob('../data/TRILEGAL_sim/*.all.*.txt')[0]
     sfile = glob.glob('../data/TRILEGAL_sim/*all*.txt')[0]
@@ -94,6 +96,187 @@ def get_errors(df):
 
 
 if __name__ == '__main__':
+    plt.close('all')
+    sfile = glob.glob('../Cuts_Data/cuts_MH_JKs_logg.txt')[0]
+    # sfile = glob.glob('../data/Ben_Fun/TRI3*')[0]
+    # sfile = glob.glob('../data/TRILEGAL_sim/*all*.txt')[0]o
+    odf = pd.read_csv(sfile, sep='\s+')
+
+    labels = odf.stage
+    cheb = (labels==4)# & (odf.logAge > 9.4)
+    df = odf[:]
+
+    numplots = 5
+    fig, ax = plt.subplots(numplots,2,sharex=True)
+    i = 0
+    for lo, hi in zip(np.linspace(-0.5,.5-1./numplots,numplots),np.linspace(-.5+1./numplots,.5,numplots)):
+        tdf = df[(df['[M/H]'] > lo) & (df['[M/H]'] < hi)]
+        ax[i,0].hist(tdf.M_ks,histtype='step',bins='sqrt')
+        ax[i,0].set_title('Ks: '+str(np.round(lo,2))+r"$<$[M/H]$<$"+str(np.round(hi,2)))
+        ax[i,1].hist(tdf.M_j,histtype='step',bins='sqrt')
+        ax[i,1].set_title('J: '+str(np.round(lo,2))+r"$<$[M/H]$<$"+str(np.round(hi,2)))
+
+        i += 1
+    fig.tight_layout()
+    plt.show()
+
+    rgb = (labels!=4)
+
+    '''Correct data'''
+    odf['Aks'] = 0.114*odf.Av #Cardelli+1989>-
+    odf['M_ks'] = odf.Ks - odf['m-M0'] - odf.Aks
+    odf['Aj'] = 0.282*odf.Av
+    odf['M_j'] = odf.J - odf['m-M0'] - odf.Aj
+    odf['JKs'] = odf.J - odf.Ks
+    odf = odf[odf.M_ks < -1.4]
+    odf = odf[odf.M_ks > -2.0]
+    # odf = odf[odf.Mact < 1.5]
+    df = odf[:]
+
+    fig, ax = plt.subplots()
+    # plt.scatter(df.logTe,df.logL,s=3,c=df['[M/H]'])
+    # plt.scatter(df.logTe,df.logL,s=3,c=df.Mact)
+    a1 = ax.scatter(df.logTe,df.logL,s=3,c=df.Mact)
+    fig.gca().invert_xaxis()
+    fig.colorbar(a1)
+
+    fig2, ax2 = plt.subplots()
+    # plt.scatter(df.logTe,df.logL,s=3,c=df['[M/H]'])
+    # plt.scatter(df.logTe,df.logL,s=3,c=df.Mact)
+    a2 = ax2.scatter(df.M_ks,df.Ks,s=3,c=df.Mact)
+    fig2.colorbar(a2)
+
+    bins = int(np.sqrt(len(df.M_ks)))
+    hig, hax = plt.subplots(3,sharex=True)
+    hax[0].hist(df.M_ks,histtype='step',bins=bins)
+    hax[1].hist(df.M_ks[cheb],histtype='step',bins=int(np.sqrt(len(df.M_ks[cheb]))))
+    hax[2].hist(df.M_ks[rgb],histtype='step',bins=int(np.sqrt(len(df.M_ks[rgb]))))
+    cp.show()
+
+
+
+    fig, ax = plt.subplots()
+    c = ['r','b','c','g','y','k','m','darkorange','chartreuse']
+    label = ['Pre-Main Sequence', 'Main Sequence', 'Subgiant Branch', 'Red Giant Branch', 'Core Helium Burning',\
+                '??', '??', 'Asymptotic Giant Branch','??']
+    for i in range(len(c)):
+        ax.scatter(df.M_ks[labels==i],df.Ks[labels==i],s=1,c=c[i],label=label[i])
+    ax.set_ylabel('Apparent Mag in Ks')
+    ax.set_xlabel('Absolute Mag in Ks')
+    plt.show()
+
+    fig, ax = plt.subplots(2)
+    for i in range(len(c)):
+        ax[0].scatter(df.M_ks[labels==i],df['[M/H]'][labels==i],s=1,c=c[i],label=label[i])
+    ax[0].set_ylabel('[M/H]')
+    ax[0].set_xlabel('Absolute Mag in Ks')
+    ax[1].hist(df['[M/H]'], histtype='step',bins=int(np.sqrt(len(df.Ks))))
+    ax[1].set_xlabel('[M/H]')
+    plt.show()
+
+    fig, ax = plt.subplots(2)
+    for i in range(len(c)):
+        ax[0].scatter(df.M_ks[labels==i],df.logg[labels==i],s=1,c=c[i],label=label[i])
+    ax[0].set_ylabel('logg')
+    ax[0].set_xlabel('Absolute Mag in Ks')
+    ax[1].hist(df.logg, histtype='step',bins=int(np.sqrt(len(df.Ks))))
+    ax[1].set_xlabel('logg')
+    plt.show()
+
+    fig, ax = plt.subplots(2)
+    for i in range(len(c)):
+        ax[0].scatter(df.M_ks[labels==i],df.logTe[labels==i],s=1,c=c[i],label=label[i])
+    ax[0].set_ylabel('LogTeff')
+    ax[0].set_xlabel('Absolute Mag in Ks')
+    ax[1].hist(df.logTe, histtype='step',bins=int(np.sqrt(len(df.Ks))))
+    ax[1].set_xlabel('LogTeff')
+    plt.show()
+
+    fig, ax = plt.subplots(2)
+    for i in range(len(c)):
+        ax[0].scatter(df.M_ks[labels==i],df.JKs[labels==i],s=1,c=c[i],label=label[i])
+    ax[0].set_ylabel('J-Ks')
+    ax[0].set_xlabel('Absolute Mag in Ks')
+    ax[1].hist(df.JKs, histtype='step',bins=int(np.sqrt(len(df.Ks))))
+    ax[1].set_xlabel('J-Ks')
+    plt.show()
+
+    fn = np.polyfit(df.M_ks, df.M_j, 1)
+    fy = df.M_ks*fn[0] + fn[1]
+    fig, ax = plt.subplots(2)
+    for i in range(len(c)):
+        ax[0].scatter(df.M_ks[labels==i],df.M_j[labels==i],s=1,c=c[i],label=label[i])
+    ax[0].set_ylabel('Absolute Mag in J')
+    ax[0].set_xlabel('Absolute Mag in Ks')
+    ax[1].hist(df.M_ks, histtype='step',bins=int(np.sqrt(len(df.Ks))))
+    ax[1].set_xlabel('J-Ks')
+
+    ax[0].plot(df.M_ks, fy,c='r')
+
+    plt.show()
+
+
+    jfy = df.M_j - df.M_ks
+    '''Getting the FG Model'''
+    n, b = np.histogram(jfy[labels==4],bins=int(np.sqrt(len(labels==4))))
+    mu = b[np.argmax(n)]
+    sig = np.std(jfy[labels==4])
+    gauss_x = np.exp(-0.5 * (((mu - jfy) / sig)**2 + 2*np.log(sig) +np.log(2*np.pi)))
+
+    '''Getting the BG Model'''
+    n, b = np.histogram(jfy[labels!=4],bins=int(np.sqrt(len(labels!=4))))
+    x0 = b[np.argmax(n)]
+    gamma = 0.04
+    lor_x = np.exp(2*np.log(gamma) - np.log(np.pi*gamma) - np.log((jfy-x0)**2 + gamma**2))
+
+    fig, ax = plt.subplots(2,2)
+    for i in range(len(c)):
+        ax[0,0].scatter(jfy[labels==i],df.M_ks[labels==i],s=1,c=c[i],label=label[i])
+    ax[0,0].set_xlabel('Absolute Mag in J - Absolute Mag in Ks')
+    ax[0,0].set_ylabel('Absolute Mag in Ks')
+    ax[0,1].hist(jfy, histtype='step',bins=int(np.sqrt(len(jfy))),normed=True)
+    ax[0,1].set_xlabel('J - K (RGB+CHeB+Others)')
+    ax[1,0].hist(jfy[labels==4], histtype='step',bins=int(np.sqrt(len(labels==4))),normed=True)
+    ax[1,0].set_xlabel('J - K for CHeB')
+    ax[1,1].hist(jfy[(labels!=4)], histtype='step',bins=int(np.sqrt(len((labels!=4)))),normed=True)
+    ax[1,1].set_xlabel('J - K for RGB+Others')
+
+    ax[1,0].scatter(jfy,gauss_x,c='blue',s=1)
+    ax[1,1].scatter(jfy,lor_x,c='orange',s=1)
+    ax01 = ax[0,1].twinx()
+    ax01.scatter(jfy,gauss_x + lor_x,c='green',s=1)
+
+    fig.tight_layout()
+
+    plt.show()
+
+
+
+
+
+    sys.exit()
+    x, y, labels, df = get_values()
+
+    fig, ax = plt.subplots()
+    ax2 = ax.twinx()
+    ax.hist(x, histtype='step',bins=int(np.sqrt(len(x))),normed=True)
+
+    for gamma in (np.arange(0.01,0.1,0.01)):
+        x0 = -1.67
+        lor = (1/np.pi*gamma) * ( gamma**2 / ((x-x0)**2 + gamma**2))
+
+        lnlor = 2*np.log(gamma) - np.log(np.pi*gamma) - np.log((x-x0)**2 + gamma**2)
+
+        ax2.scatter(x, np.exp(lnlor), s=5)
+    plt.show()
+
+
+
+
+
+    sys.exit()
+
+
     # vals = [-1.63,-1.59,-1.627,-1.626]
     # errs = [0.002,0.005,0.20,0.057]
     # noms = ['MixMod 2d', 'Mixmod 3d', 'RANSAC', 'Hawkins+17']

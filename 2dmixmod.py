@@ -4,112 +4,25 @@
 
 import numpy as np
 import pandas as pd
+import corner as corner
+import emcee
 
 import glob
 import sys
-import corner as corner
+import ClosePlots as cp
 from tqdm import tqdm
-# import seaborn as sns
-import emcee
 
 import matplotlib
-# import seaborn as sns
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 matplotlib.rcParams['xtick.direction'] = 'out'
 matplotlib.rcParams['ytick.direction'] = 'out'
 
-from statsmodels.robust.scale import mad as mad_calc
-from sklearn import linear_model
-import scipy.stats as stats
-import scipy.misc as misc
-
 import cMCMC
-import cLikelihood
 import cPrior
+import cLLModels
 
-def get_values():
-    # sfile = glob.glob('../data/TRILEGAL_sim/*.all.*.txt')[0]
-    sfile = glob.glob('../data/TRILEGAL_sim/*all*.txt')[0]
-    df = pd.read_csv(sfile, sep='\s+')
-
-    '''This function corrects for extinction and sets the RC search range'''
-    df['Aks'] = 0.114*df.Av #Cardelli+1989>-
-    df['M_ks'] = df.Ks - df['m-M0'] - df.Aks
-
-    corrections = pd.DataFrame(columns=['M_ks<','M_ks>','Ks<','Ks>','Mact<','M/H>','M/H<'])
-    corr = [-0.5, -2.5, 15., 6., 1.5, -.5, .5]
-    corrections.loc[0] = corr
-    corrections.to_csv('../Output/data_selection.csv')
-
-    #Set selection criteria
-    df = df[df.M_ks < corr[0]]
-    df = df[df.M_ks > corr[1]]
-
-    df = df[df.Ks < corr[2]]
-    df = df[df.Ks > corr[3]]
-
-    df = df[df.Mact < corr[4]]
-
-    df = df[df['[M/H]'] > corr[5]]
-    df = df[df['[M/H]'] < corr[6]]
-
-    # df = df[df['Ks'] < 10.5]
-    # df = df[df['Ks'] > 7.0]
-
-    # df = df[df.stage == 4]
-    # df = df[0:5000]
-
-    df = get_errors(df)
-
-    return df.M_ks.values, df.Ks.values, df.stage, df
-
-def get_errors(df):
-    DR = 2  #Choosing the data release
-    if DR == 1:
-        df['pi_err'] = np.abs(0.3 + np.random.normal(0,0.5,len(df)) * 0.3) #mas
-
-    if DR == 2:
-        df['pi_err'] = np.abs(10.e-3 + np.random.normal(0,0.5,len(df)) * 2.e-3) #mas
-
-    df['d'] = 10**(1+ (df['m-M0']/5))       #Getting all distances (pc)
-    df['pi'] = 1000/df['d']                 #Getting all parallax (mas)
-    df['sig_d'] = (1000*df['pi_err']/df['pi']**2)  #Propagating the Gaia error
-
-    df['sig_mu'] = np.sqrt( (5*np.log10(np.e)/df['d'])**2 * df['sig_d']**2 )
-    df['sig_M'] = df['sig_mu']  #Until we incorporate errors on Aks and Ks
-
-    plt.errorbar(df['pi'],df['Ks'],xerr=df['pi_err'],alpha=.1,fmt=".k",c='grey',zorder=999)
-    plt.scatter(df['pi'],df['Ks'],s=5,zorder=1000)
-    plt.show()
-
-    plt.errorbar(df['d'],df['Ks'],xerr=df['sig_d'],alpha=.1,fmt=".k",c='grey',zorder=999)
-    plt.scatter(df['d'],df['Ks'],s=5,zorder=1000)
-    plt.show()
-    return df
-
-class cModel:
-    '''Models for this run.'''
-    def __init__(self, _x, _y, _xerr):
-        self.x = _x
-        self.y = _y
-        self.xerr = _xerr
-
-    def fg(self, p):
-        b, sigrc, _, _, _ = p
-        sig = np.sqrt(sigrc**2 + self.xerr**2)
-        return -0.5 * ((self.x - b) / sig)**2 - np.log(sig)
-
-    def bg(self, p):
-        _, _, o, sigo, _ = p
-        sig = np.sqrt(sigo**2 + self.xerr**2)
-        val = np.abs(self.x).max() + np.abs(self.x).min()
-
-        xn = self.x + val
-        on = np.abs(o)
-
-        return -np.log(xn) -np.log(sig) - 0.5 * (np.log(xn) - on)**2/sig**2
-
+'''<Unused in current build.>'''
 def save_library(df, chain,labels_mc):
     results = pd.DataFrame(columns=labels_mc)
     stddevs = pd.DataFrame(columns=[l+'err' for l in labels_mc])
@@ -123,8 +36,8 @@ def save_library(df, chain,labels_mc):
     results.loc[0], stddevs.loc[0] = r, s
 
     output = pd.concat([results,stddevs],axis=1)
-    output.to_csv('../Output/2dmix_results.csv')
-    df.to_csv('../Output/2dmix_selected_data.csv')
+    output.to_csv('Output/2dmix_results.csv')
+    df.to_csv('Output/2dmix_selected_data.csv')
 
     return results, stddevs
 
@@ -166,106 +79,340 @@ def tortoise(dfm):
     plt.show()
     return len(df[labels==4])
 
+def get_errors(df, DR=2):
+    if DR == 2:
+        df['pi_err'] = np.abs(0.2 + np.random.normal(0,0.5,len(df)) * 0.1) #mas
+
+    if DR == 'fin':
+        df['pi_err'] = np.abs(10.e-3 + np.random.normal(0,0.5,len(df)) * 2.e-3) #mas
+
+    df['d'] = 10**(1+ (df['m-M0']/5))       #Getting all distances (pc)
+    df['pi'] = 1000/df['d']                 #Getting all parallax (mas)
+    df['sig_d'] = (1000*df['pi_err']/df['pi']**2)  #Propagating the Gaia error
+
+    df['sig_mu'] = np.sqrt( (5*np.log10(np.e)/df['d'])**2 * df['sig_d']**2 )
+    df['sig_M'] = df['sig_mu']  #Until we incorporate errors on Aks and Ks
+
+    plt.errorbar(df['pi'],df['Ks'],xerr=df['pi_err'],alpha=.1,fmt=".k",c='grey',zorder=999)
+    plt.scatter(df['pi'],df['Ks'],s=5,zorder=1000)
+    plt.show()
+
+    plt.errorbar(df['d'],df['Ks'],xerr=df['sig_d'],alpha=.1,fmt=".k",c='grey',zorder=999)
+    plt.scatter(df['d'],df['Ks'],s=5,zorder=1000)
+    plt.show()
+    return df
+'''</unused in current build.>'''
+
+def get_values():
+    sfile = glob.glob('../Cuts_Data/cuts_MH_JKs_logg.txt')[0]
+    try:
+        df = pd.read_csv(sfile, sep='\s+')
+    except IOError:
+        print('Cuts file doesnt exist, run the slider first.')
+
+    '''Errors not included in current run'''
+    # df = get_errors(df, DR=2)
+    df = df[(df.M_ks > -2.0) & (df.M_ks < -1.0)]
+    df = df[0:10000]
+
+    return df.M_ks.values, df.M_j.values, df.stage, df
+
+class cLikelihood:
+    '''A likelihood function that pulls in log likehoods from the LLModels class
+    '''
+    def __init__(self,_lnprior, _Model):
+        self.lnprior = _lnprior
+        self.Model = _Model
+
+    #Likelihood for the 'foreground'
+    def lnlike_fg(self, p):
+        return self.Model.lorentzian(p[0:2]) + self.Model.lorentzian(p[4:6],dim='y')
+        # return self.Model.lorentzian(p[0:2]) + self.Model.lorentzian(p[4:6],dim='y')
+
+    def lnlike_bg(self, p):
+        # return self.Model.lorentzian(p[2:4]) + self.Model.lorentzian(p[6:8],dim='y')
+        return self.Model.lorentzian(p[2:4]) + self.Model.lorentzian(p[6:8],dim='y')
+
+    def lnprob(self, p):
+        Q = p[-1]
+
+        # First check the prior.
+        lp = self.lnprior(p)
+        if not np.isfinite(lp):
+            return -np.inf, None
+
+        # Compute the vector of foreground likelihoods and include the q prior.
+        ll_fg = self.lnlike_fg(p)
+        arg1 = ll_fg + np.log(Q)
+
+        # Compute the vector of background likelihoods and include the q prior.
+        ll_bg = self.lnlike_bg(p)
+        arg2 = ll_bg + np.log(1.0 - Q)
+
+        # Combine these using log-add-exp for numerical stability.
+        ll = np.nansum(np.logaddexp(arg1, arg2))
+
+        return lp + ll
+
+    def __call__(self, p):
+        logL = self.lnprob(p)
+        return logL
+
+def probability_plot(x, y, df, bins, Ksx0, Jx0, lor_Ks_fg, lor_Ks_bg, lor_J_fg, lor_J_bg):
+    #Plotting residuals with histograms
+    left, bottom, width, height = 0.1, 0.35, 0.4, 0.60
+    fig = plt.figure(1, figsize=(10,8))
+    lax = fig.add_axes([left, bottom, width, height])           #Left-hand plot
+    rax = fig.add_axes([left+width+0.05, bottom, width, height]) #Right-hand plot
+    xax = fig.add_axes([left, 0.1, width, 0.22], sharex=lax)    #x histogram
+    yax = fig.add_axes([left+width+0.05, 0.1, width, 0.22], sharex=rax) #y histogram
+    #Clearing necessary axes
+    lax.xaxis.set_visible(False)
+    rax.xaxis.set_visible(False)
+    yax.set_yticklabels([])
+    yax2 = yax.twinx()
+    yax2.set_yticklabels([])
+    xax.set_yticklabels([])
+    xax2 = xax.twinx()
+    xax2.set_yticklabels([])
+    #Turning on grid
+    xax.grid()
+    xax.set_axisbelow(True)
+    yax.grid()
+    yax.set_axisbelow(True)
+
+    fig.suptitle('Probability functions to be applied to TRILEGAL data.')
+    #Plotting left hand 2d hist
+    lax.hist2d(x, df.Ks,bins=bins, cmap='Blues_r', zorder=1000)
+    lax.axvline(Ksx0,c='r',zorder=1001)
+
+    #Plotting right hand 2d hist
+    rax.hist2d(y, df.J, bins=bins, cmap='Blues_r',zorder=1000)
+    rax.axvline(Jx0, c='r', zorder=1001)
+
+    #Plotting histogram with models for J
+    yax.hist(y,bins=bins,histtype='step',color='r',normed=True)
+    yax2.scatter(y,lor_J_fg,s=5,c='cornflowerblue',alpha=.5,label='Foreground Lorentzian in J')
+    yax2.scatter(y,lor_J_bg,s=5,c='orange',alpha=.5,label='Background Lorentzian in J')
+    yax2.scatter(y,lor_J_bg+lor_J_fg,s=1,c='green',alpha=.2,label='Combined')
+    yax2.set_ylim(0.)
+    yax.axvline(Jx0,c='r',label=r"$Jx0$")
+    h1, l1 = yax.get_legend_handles_labels()
+    h2, l2 = yax2.get_legend_handles_labels()
+    yax.legend(h1+h2, l1+l2)
+
+    #Plotting histograms with models for Ks
+    xax.hist(x,bins=bins,histtype='step',color='r',normed=True)
+    xax2.scatter(x,lor_Ks_fg,s=5,c='cornflowerblue',alpha=.5,label='Foreground Lorentzian in Ks')
+    xax2.scatter(x,lor_Ks_bg,s=5,c='orange',alpha=.5,label='Background Lorentzian in Ks')
+    xax2.scatter(x,lor_Ks_fg+lor_Ks_bg,s=1,c='green',alpha=.2,label='Combined')
+    xax2.set_ylim(0.)
+    xax.axvline(Ksx0,c='r',label=r"$Ksx0$")
+    h1, l1 = xax.get_legend_handles_labels()
+    h2, l2 = xax2.get_legend_handles_labels()
+    xax.legend(h1+h2, l1+l2)
+
+    #Set labels
+    xax.set_xlabel(r"$M_{Ks}$")
+    yax.set_xlabel(r"$M_{J}$")
+    lax.set_ylabel(r"$m_{Ks}$")
+    rax.set_ylabel(r"$m_{J}$")
+    return fig
+
+
 if __name__ == '__main__':
+    plt.close('all')
 ####---SETTING UP DATA
     x, y, labels, df = get_values()
-    xerr = df['sig_M']
-    # xerr = np.abs(0.05 + np.random.normal(0, 1, len(x)) * 0.005)
-    # yerr = np.abs(0.1 + np.random.normal(0, 1, len(y)) * 0.05)
 
 ####---PLOTTING INITIAL DATA
     fig, ax = plt.subplots()
     c = ['r','b','c','g','y','k','m','darkorange','chartreuse']
     label = ['Pre-Main Sequence', 'Main Sequence', 'Subgiant Branch', 'Red Giant Branch', 'Core Helium Burning',\
                 'RR Lyrae variables', 'Cepheid Variables', 'Asymptotic Giant Branch','Supergiants']
-    # for i in range(int(np.nanmax(labels))+1):
-    #     ax.scatter(x[labels==i], y[labels==i], c=c[i], s=1,zorder=1000,label=label[i])
-    ax.scatter(x[labels==3], y[labels==3], c=c[3], s=1,zorder=1000,label=label[3])
-    ax.scatter(x[labels==4], y[labels==4], c=c[4], s=1,zorder=1000,label=label[4])
-
-
-    ax.errorbar(x, y, xerr=xerr, fmt=",k", ms=0, capsize=0, lw=1, zorder=999)
+    ax.scatter(x[labels==3], df.Ks[labels==3], c=c[3], s=1,zorder=1000,label=label[3])
+    ax.scatter(x[labels==4], df.Ks[labels==4], c=c[4], s=1,zorder=1001,label=label[4])
+    sel = (labels!=3)&(labels!=4)
+    ax.scatter(x[sel], df.Ks[sel], c=c[0], s=1, zorder=1002, label='Other types')
     ax.set_xlabel(r"$M_{Ks}$")
     ax.set_ylabel(r"$m_{Ks}$")
-    ax.set_title(r"Labeled TRILEGAL simulated data for (M $<$ 1.4Msol, -.5 $<$ [M/H] $<$ .5)")
+    ax.set_title("Labeled TRILEGAL simulated data cut in [M/H], logg & J-Ks")
     ax.legend(loc='best',fancybox=True)
     ax.grid()
     ax.set_axisbelow(True)
+    fig.savefig('Output/investigate_TRILEGAL.png')
+    plt.close('all')
 
-    plt.savefig('/home/oliver/Dropbox/Papers/Midterm/Images/C4_TRILEGALfull.png')
-    # plt.savefig('../Output/dataset.png')
+####---EXAMINING & ESTIMATING PARAMETERS
+    bins = int(np.sqrt(len(x)))
+
+    n, b = np.histogram(x,bins=bins)
+    Ksx0guess = b[np.argmax(n)]
+
+    n, b = np.histogram(y, bins=bins)
+    Jx0guess = b[np.argmax(n)]
+
+####---SETTING UP MCMC
+    style = 'lors'
+    if style == 'lors':
+        labels_mc = ["$x0 (Ks)$", r"$\gamma0$(Ks)",\
+                    "$x1$(Ks)", r"$\gamma1$(Ks)",\
+                    "$x0 (J)$", r"$\gamma0$(J)",\
+                    "$x1$(J)", r"$\mu$(J)",\
+                    "$Q$"]
+        start_params = np.array([Ksx0guess, 0.02,   #Foreground params in Ks
+                                -1.56, 0.1,         #Background params in Ks
+                                Jx0guess, 0.05,     #Foreground params in J
+                                -0.93, 0.1,         #Background params in J
+                                0.5])              #Mixture model param
+        bounds = [(-1.7,-1.6), (0.01,0.8),
+                    (-1.6,-1.5), (0.08, 0.2),
+                    (-1.1,-0.9), (0.01,0.8),
+                    (-0.96,-0.9), (0.08, 1.2),
+                    (0, 1)]
+    if style == 'notlors':
+        labels_mc = ["$x0 (Ks)$", r"$\gamma$ (Ks)",\
+                    r"$\mu$(Ks)", r"$\sigma$(Ks)",\
+                    "$x0 (J)$", r"$\gamma$ (J)",\
+                    r"$\mu$(Ks)", r"$\sigma$(Ks)",\
+                    "$Q$"]
+        start_params = np.array([Ksx0guess, 0.02,   #Foreground params in Ks
+                                -1.58, 0.14,         #Background params in Ks
+                                Jx0guess, 0.05,     #Foreground params in J
+                                -0.93, 0.1,         #Background params in J
+                                0.5])              #Mixture model param
+        bounds = [(-1.7,-1.63), (0.01,0.8),
+                    (-1.63,-1.5), (0.08, 0.2),
+                    (-1.1,-1.0), (0.01,0.8),
+                    (-0.96,-0.9), (0.08, 1.2),
+                    (0, 1)]
+
+####---CHECKING MODELS BEFORE RUN
+    #Getting other probability functions
+    ModeLLs = cLLModels.LLModels(x, y, labels_mc)
+    lor_Ks_fg = np.exp(ModeLLs.lorentzian(start_params[0:2]))
+    lor_Ks_bg = np.exp(ModeLLs.lorentzian(start_params[2:4]))
+    # lor_Ks_bg = np.exp(ModeLLs.gaussian(start_params[2:4]))
+    lor_J_fg = np.exp(ModeLLs.lorentzian(start_params[4:6], dim='y'))
+    lor_J_bg = np.exp(ModeLLs.lorentzian(start_params[6:8], dim='y'))
+    # lor_J_bg = np.exp(ModeLLs.gaussian(start_params[6:8], dim='y'))
+
+    #Visualising the probability distributions
+    fig = probability_plot(x, y, df, bins, Ksx0guess, Jx0guess, lor_Ks_fg, lor_Ks_bg, lor_J_fg, lor_J_bg)
+    fig.savefig('Output/visual_models.png')
     plt.show()
     plt.close('all')
 
-####---SETTING UP AND RUNNING MCMC
-    labels_mc = ["$b$", r"$\sigma(RC)$", "$o$", r"$\sigma(o)$", "$Q$"]
-    bounds = [(-1.7,-1.4), (0.01,0.2), (0.0,2.0), (0.1, 2.), (0, 1)]
-    start_params = np.array([-1.6, 0.1, 0.1, 1.0, 0.5])
+####---RUNNING MCMC
+    lnprior = cPrior.Prior(bounds)
+    Like = cLikelihood(lnprior, ModeLLs)
+    if np.isinf(lnprior(start_params)):
+        print('Starting guesses out of bounds.')
+        sys.exit()
 
-    Model = cModel(x, y, xerr)
-    lprior = cPrior.Prior(bounds)
-    Like = cLikelihood.Likelihood(x, y, xerr, lnprior, Model)
+    ntemps, nwalkers = 4, 32
 
-    # Initialize the walkers at a reasonable location.
-    ntemps, ndims, nwalkers = 2, len(bounds), 100
-
-    Fit = cMCMC.MCMC(start_params, Like, lnprior, 0, ntemps, 1000, nwalkers)
+    Fit = cMCMC.MCMC(start_params, Like, lnprior, 'none', ntemps, 1000, nwalkers)
     chain = Fit.run()
 
 ####---CONSOLIDATING RESULTS
     corner.corner(chain, bins=35, labels=labels_mc)
-    plt.savefig('../Output/corner.png')
+    plt.savefig('Output/corner.png')
+    plt.show()
+    plt.close()
+
+    print('Plotting model results...')
+    npa = chain.shape[1]
+    res = np.zeros(npa)
+    std = np.zeros(npa)
+    for idx in np.arange(npa):
+        res[idx] = np.median(chain[:,idx])
+        std[idx] = np.std(chain[:,idx])
+
+    #Calling probability functions with results
+    lor_Ks_fg = np.exp(ModeLLs.lorentzian(res[0:2]))
+    # lor_Ks_bg = np.exp(ModeLLs.lorentzian(res[2:4]))
+    lor_Ks_bg = np.exp(ModeLLs.gaussian(res[2:4]))
+    lor_J_fg = np.exp(ModeLLs.lorentzian(res[4:6], dim='y'))
+    # lor_J_bg = np.exp(ModeLLs.lorentzian(res[6:8], dim='y'))
+    lor_J_bg = np.exp(ModeLLs.gaussian(res[6:8], dim='y'))
+
+    fig = probability_plot(x, y, df, bins, res[0], res[4], lor_Ks_fg, lor_Ks_bg, lor_J_fg, lor_J_bg)
+    fig.savefig('Output/visual_result.png')
+
+    print('Calculating posteriors...')
+    lnK, fg_pp = Fit.log_bayes()
+    sys.exit()
+
+    #Calculate recall vs precision for various Kass+Raftery94 cut off scales
+    recall, precision = [], []
+    for lim in np.linspace(lnK.min(),lnK.max(),1000):
+        mask = lnK > lim
+        cheb_correct = len(x[mask][labels[mask]==4])
+        cheb_total = len(x[labels==4])
+        identified_total = len(x[mask])
+        recall.append(float(cheb_correct)/float(cheb_total))
+        try:
+            precision.append(float(cheb_correct)/float(identified_total))
+        except:
+            precision.append(0.)
+    f, a = plt.subplots()
+    col = a.scatter(recall, precision, c=np.linspace(lnK.min(),lnK.max(),1000))
+    a.axhline(0.9,c='r',label='0.9 precision')
+    a.set_xlabel('Recall')
+    a.set_ylabel('Precision')
+    a.grid()
+    a.set_axisbelow(True)
+    f.colorbar(col, label='lnK cut-off point')
+    f.savefig('Output/precisionvsrecall.png')
     plt.show()
 
-    lnK, fg_pp = Fit.log_bayes()
-    mask = lnK > 1
+    mask = lnK > 3
 
 ####---PLOTTING RESULTS
-    print('Plotting results...')
-    rc = np.median(chain[:,0])  #RC luminosity
-    err = np.std(chain[:,0])    #stddev on RC luminosity
-    rcy = np.linspace(6,15,10)  #Y-axis for RC plot
-
-    rcx = np.linspace(rc-err,rc+err,10) #Setting up shading bounds
-    rcy1 = np.ones(rcx.shape) * y.max()
-    rcy2 = np.ones(rcx.shape) * 6
 
     # Plot mixture model results
     fig, ax = plt.subplots()
-    ax.errorbar(x, y, xerr=xerr, fmt=",k", ms=0, capsize=0, lw=1, zorder=999)
-    s = ax.scatter(x, y, marker="1", s=1, c=fg_pp, cmap="Blues_r", vmin=0, vmax=1, zorder=1000)
-    ax.fill_between(rcx,rcy1,rcy2,color='red',alpha=0.8,zorder=1001,label='RC Confidence Interval')
+    ax.grid()
+    ax.set_axisbelow(True)
+
+    col = ax.scatter(x, df.Ks, c=fg_pp,s=5,cmap='viridis')
+    ax.axvline(res[0],c='r',label=r"$\mu$")
     ax.set_title(r"Inlier Posterior Probabilities for TRILEGAL simulated data")
     ax.set_xlabel(r"$M_{Ks}$")
     ax.set_ylabel(r"$m_{Ks}$")
-    fig.colorbar(s,label='Inlier Posterior Probability')
+    fig.colorbar(col,label='Inlier Posterior Probability')
     ax.legend(loc='best',fancybox='True')
+    fig.savefig('Output/posteriors.png')
 
-    ax.grid()
-    ax.set_axisbelow(True)
-    plt.savefig('/home/oliver/Dropbox/Papers/Midterm/Images/C4_posteriors.png')
-    # plt.savefig('../Output/posteriors.png')
-    plt.show()
+
+    #Plotting identified results
+    ffig, aax = plt.subplots()
+    aax.scatter(x[~mask], df.Ks[~mask], c=c[3], s=1,zorder=1000,label='Outliers (RGB)')
+    aax.scatter(x[mask], df.Ks[mask], c=c[4], s=1,zorder=1000,label='Inliers (RC)')
+    aax.legend(loc='best',fancybox=True)
+
+    cheb_correct = len(x[mask][labels[mask]==4])
+    cheb_total = len(x[labels==4])
+    identified_total = len(x[mask])
+    recall = float(cheb_correct)/float(cheb_total)
+    precision = float(cheb_correct)/float(identified_total)
+
+    aax.set_xlabel(r"$M_{Ks}$")
+    aax.set_ylabel(r"$m_{Ks}$")
+    aax.set_title('Recall: '+str.format('{0:.2f}',recall) + '| Precision: '+str.format('{0:.2f}',precision))
+    aax.legend(loc='best',fancybox=True)
+    aax.grid()
+    aax.set_axisbelow(True)
+
+    ffig.savefig('Output/dataset.png')
+    cp.show()
     plt.close('all')
 
-    #Plot labeled results
-    fig, ax = plt.subplots()
-    ax.scatter(x[~mask][labels[~mask]==3], y[~mask][labels[~mask]==3], c=c[3], s=1,zorder=1000,label=label[3])
-    ax.scatter(x[~mask][labels[~mask]==4], y[~mask][labels[~mask]==4], c=c[4], s=1,zorder=1000,label=label[4])
-    ax.errorbar(x[~mask], y[~mask], xerr=xerr[~mask], fmt=",k", ms=0, capsize=0, lw=1, zorder=999)
-    ax.fill_between(rcx,rcy1,rcy2,color='red',alpha=0.8,zorder=1001,label='RC Confidence Interval')
+    sys.exit()
+    Fit.dump()
 
-    ax.set_xlabel(r"$M_{Ks}$")
-    ax.set_ylabel(r"$m_{Ks}$")
-    ax.set_title(r"TRILEGAL simulated data with classified RC stars removed")
-    ax.legend(loc='best',fancybox=True)
-    ax.grid()
-    ax.set_axisbelow(True)
-
-    plt.savefig('/home/oliver/Dropbox/Papers/Midterm/Images/C4_result.png')
-    # plt.savefig('../Output/dataset.png')
-    plt.show()
-    plt.close('all')
+    '''Everything below here is redundant in current build.'''
 
 
 
@@ -273,13 +420,7 @@ if __name__ == '__main__':
     print('Saving output...')
     results, stddevs = save_library(df,chain,labels_mc)
 
-    plt.scatter(x,np.exp(lnlike_fg(results.loc[0].values)))
-    plt.savefig('../Output/fg_like.png')
-    plt.close()
-    plt.scatter(x, np.exp(lnlike_bg(results.loc[0].values)))
-    plt.savefig('../Output/bg_like.png')
-    plt.close()
-
+    sys.exit()
 #__________________GETTING CORRECTION____________________________
     print('Calculating corrections...')
     #Plot showing correction
