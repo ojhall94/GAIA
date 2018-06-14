@@ -24,20 +24,50 @@ import corner
 import random
 import pickle
 import os
+import sys
+import glob
 
-__outdir__ = '/home/oliver/PhD/Gaia_Project/Output/'
-__datdir__ = '/home/oliver/PhD/Gaia_Project/data/KepxDR2/'
+from omnitool.literature_values import Av_coeffs
 
-__iter__ = 1000
+
+__outdir__ = os.path.expanduser('~')+'/PhD/Gaia_Project/Output/'
+__datdir__ = os.path.expanduser('~')+'/PhD/Gaia_Project/data/KepxDR2/'
+
+__iter__ = 10000
 
 class run_stan:
-    def __init__(self, _dat, _init=0., _runlabel='', _data='astero'):
+    def __init__(self, _dat, _init=0., _majorlabel='', _minorlabel='', _stantype='astero'):
+        '''Core PyStan class.
+        Input __init__:
+        _dat (dict): Dictionary of the data in pystan format.
+
+        _init (dict): Dictionary of initial guesses in pystan format.
+
+        _majorlabel (str): Name of the run set. This will be the name of the local
+        directory the results are stored in.
+
+        _minorlabel (str): Name of the individual run (i.e. a numeric value). This
+        will be included in the title of all output files.
+
+        _stantype (str): Stanmodel to be used, either 'astero' or 'gaia'.
+
+        Input __call__:
+        verbose (bool): If True: saves chains, median and standard deviations on
+        parameter posteriors, and the rhat values (as well as plot of rhats)
+
+        visual (bool): If True: saves cornerplot and the pystan chain plot.
+        '''
         self.dat = _dat
         self.init = _init
-        self.data = _data #Either astero or gaia
-        self.runlabel = __outdir__+_runlabel+'_'+_data
+        self.data = _stantype #Either astero or gaia
+        self.runlabel = __outdir__+_majorlabel+'/'+_stantype+'_'+_minorlabel
+
+        #Check folder exists, if not, overwrite
+        if not os.path.exists(__outdir__+_majorlabel):
+            os.makedirs(__outdir__+_majorlabel)
 
     def build_metadata(self):
+        '''Builds label metadata for the run'''
         if self.data == 'astero':
             self.pars = ['mu', 'sigma', 'Q', 'sigo']
             self.verbose = [r'$\mu_{RC} (mag)$',r'$\sigma_{RC} (mag)$',r'$Q$', r'$\sigma_o (mag)$']
@@ -47,6 +77,7 @@ class run_stan:
             self.verbose = [r'$\mu_{RC} (mag)$',r'$\sigma_{RC} (mag)$',r'$Q$', r'$\sigma_o (mag)$', r'$L (pc)$']
 
     def read_stan(self):
+        '''Reads the existing stanmodels'''
         if self.data == 'astero':
             model_path = 'asterostan.pkl'
             if os.path.isfile(model_path):
@@ -66,6 +97,7 @@ class run_stan:
         return sm
 
     def run_stan(self):
+        '''Runs PyStan'''
         sm = self.read_stan()
 
         if self.init != 0.:
@@ -98,12 +130,12 @@ class run_stan:
 
         #Save the parameters
         pardict = {label:np.median(fit[label]) for label in self.pars}
+        pardict.update({label+'_std':np.std(fit[label]) for label in self.pars})
         pardict = pd.DataFrame.from_dict(pardict,orient='index').T
         pardict.to_csv(self.runlabel+'_pars.csv')
 
         #Save the Rhat values
         s = fit.summary()
-        print(s['summary'][:,-1])
         rhat = s['summary'][:,-1]
         np.savetxt(self.runlabel+'_rhats.txt', rhat)
 
@@ -128,12 +160,14 @@ class run_stan:
         print('Run to + '+self.runlabel+' complete!')
 
 def read_data():
+    '''Reads in the Yu et al. 2018 data'''
     sfile = __datdir__+'rcxyu18.csv'
     df = pd.read_csv(sfile)
     return df
 
-def run_ast_test():
-    npts = 500
+def test_ast():
+    '''A test using synthetic data of the asteroseismic PyStan model.'''
+    npts = 5000
     rQ = .60     #Mixture weighting
     rmu = -1.7   #Inlier mean
     rsigma = .05 #Inlier spread
@@ -170,11 +204,94 @@ def run_ast_test():
            'sigo': rsigo,
            'Q' : rQ}
 
-    run = run_stan(data, _init=init, _runlabel='test', _data='astero')
+    run = run_stan(data, _init=init, _majorlabel='test', _stantype='astero')
     run(verbose=True, visual=True)
 
-def test_magzeropoint():
+def run_gaia(df, init, majorlabel='gaia_test', band='Ks'):
+    '''A basic run of the gaia PyStan model'''
 
+    #Define the data
+    maglabel = band+'mag'
+    if band=='Ks':
+        maglabel = 'Kmag'
+    dat = {'N' : len(df),
+            'm' : df[maglabel].values,
+            'm_err' : df['e_'+maglabel].values,
+            'oo_uncorr' : df.parallax.values,
+            'oo_err' : df.parallax_error.values,
+            'RlEbv' : df.Ebv.values * Av_coeffs[band].values,
+            'oo_zp' : -0.029}
+
+    run = run_stan(dat, _init=init,
+                _majorlabel=majorlabel, _stantype='gaia')
+    run(verbose=True, visual=True)
+
+def get_basic_init(type='gaia'):
+    '''Returns a basic series of initial guesses in PyStan format.'''
+    init = {'mu':-1.7,
+            'sigma':0.05,
+            'Q':0.8,
+            'sigo':.7,
+            'L':1100}
+
+    if type == 'gaia':
+        init['L'] = 1100
+
+    return init
+
+def test_magzeropoint(df, init, band = 'Ks'):
+    '''Runs the Gaia Pystan model for various values of the parallax zeropoint.'''
+    #Define the data
+    maglabel = band+'mag'
+    if band=='Ks':
+        maglabel = 'Kmag'
+    dat = {'N' : len(df),
+            'm' : df[maglabel].values,
+            'm_err' : df['e_'+maglabel].values,
+            'oo_uncorr' : df.parallax.values,
+            'oo_err' : df.parallax_error.values,
+            'RlEbv' : df.Ebv.values * Av_coeffs[band].values,
+            'oo_zp' : 0.}
+
+    #Our aim here is to vary oo_zp to see how it changes the position of the Clump
+    oo_zps = np.linspace(0.000, 0.050, 10)
+    for n, oo_zp in enumerate(oo_zps):
+        dat['oo_zp'] = oo_zp
+        run = run_stan(dat, _init=init,
+                        _majorlabel='oo_zp', _minorlabel=str(round(oo_zp, 4)), _stantype='gaia')
+        run(verbose=True, visual=True)
+        print('Completed run on oo_zp: '+str(oo_zp))
+    print('Completed full run on '+str(len(oo_zps))+' different parallax zero points.')
+
+def read_paramdict(majorlabel, minorlabel='', all_minor=True):
+    '''Reads in results for either:
+        -A full run series (majorlabel) where the minorlabel is included as a
+            column in the output.
+        -A single run (majorlabel and minorlabel).
+
+        Returns a pandas dataframe.
+    '''
+    loc = __outdir__+majorlabel+'/'
+
+    if (minorlabel == '') & (all_minor == False):
+        print('Please set a minorlabel if you want to read in a single result.')
+        print('all_minor has been set to True to read in all results')
+        all_minor = True
+
+    globlist = glob.glob(loc+'*'+minorlabel+'_*pars*.csv')
+
+    minorlabels = [os.path.basename(globloc).split('_')[1] for globloc in globlist]
+
+    df = pd.DataFrame()
+    for n, globloc in enumerate(globlist):
+        sdf = pd.read_csv(globloc, index_col = 0)
+        if minorlabels[n] != 'pars.csv':
+            sdf[majorlabel] = minorlabels[n]
+        df = df.append(sdf)
+
+    return df
 
 if __name__ == "__main__":
-    run_ast_test()
+    print('hey world')
+    # run_ast_test()
+    # test_magzeropoint(read_data()[:100], get_basic_init('gaia'), band='Ks')
