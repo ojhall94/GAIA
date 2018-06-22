@@ -28,12 +28,61 @@ import sys
 import glob
 
 from omnitool.literature_values import Av_coeffs
+from omnitool import scalings
 
 
 __outdir__ = os.path.expanduser('~')+'/PhD/Gaia_Project/Output/'
 __datdir__ = os.path.expanduser('~')+'/PhD/Gaia_Project/data/KepxDR2/'
 
-__iter__ = 10000
+__iter__ = 100
+
+'''_____'''
+def get_basic_init(type='gaia'):
+    '''Returns a basic series of initial guesses in PyStan format.'''
+    init = {'mu':-1.7,
+            'sigma':0.1,
+            'Q':0.8,
+            'sigo':4.}
+
+    if type == 'gaia':
+        init['L'] = 1000
+
+    return init
+
+def read_paramdict(majorlabel, minorlabel='', all_minor=True):
+    '''Reads in results for either:
+        -A full run series (majorlabel) where the minorlabel is included as a
+            column in the output.
+        -A single run (majorlabel and minorlabel).
+
+        Returns a pandas dataframe.
+    '''
+    loc = __outdir__+majorlabel+'/'
+
+    if (minorlabel == '') & (all_minor == False):
+        print('Please set a minorlabel if you want to read in a single result.')
+        print('all_minor has been set to True to read in all results')
+        all_minor = True
+
+    globlist = glob.glob(loc+'*'+minorlabel+'_*pars*.csv')
+
+    minorlabels = [os.path.basename(globloc).split('_')[1] for globloc in globlist]
+
+    df = pd.DataFrame()
+    for n, globloc in enumerate(globlist):
+        sdf = pd.read_csv(globloc, index_col = 0)
+        if minorlabels[n] != 'pars.csv':
+            sdf[majorlabel] = minorlabels[n]
+        df = df.append(sdf)
+
+    return df
+
+def read_data():
+    '''Reads in the Yu et al. 2018 data'''
+    sfile = __datdir__+'rcxyu18.csv'
+    df = pd.read_csv(sfile)
+    return df
+'''_____'''
 
 class run_stan:
     def __init__(self, _dat, _init=0., _majorlabel='', _minorlabel='', _stantype='astero'):
@@ -139,13 +188,6 @@ class run_stan:
         rhat = s['summary'][:,-1]
         np.savetxt(self.runlabel+'_rhats.txt', rhat)
 
-        #Plot the Rhat distribution
-        rhatfin = rhat[np.isfinite(rhat)]
-        sns.distplot(rhatfin)
-        plt.title('Distribution of Rhat values')
-        plt.savefig(self.runlabel+'_rhatdist.png')
-        plt.close('all')
-
     def __call__(self, verbose=True, visual=True):
         self.build_metadata()
         fit = self.run_stan()
@@ -159,11 +201,6 @@ class run_stan:
 
         print('Run to + '+self.runlabel+' complete!')
 
-def read_data():
-    '''Reads in the Yu et al. 2018 data'''
-    sfile = __datdir__+'rcxyu18.csv'
-    df = pd.read_csv(sfile)
-    return df
 
 def test_ast():
     '''A test using synthetic data of the asteroseismic PyStan model.'''
@@ -226,19 +263,6 @@ def run_gaia(df, init, majorlabel='gaia_test', band='Ks'):
                 _majorlabel=majorlabel, _stantype='gaia')
     run(verbose=True, visual=True)
 
-def get_basic_init(type='gaia'):
-    '''Returns a basic series of initial guesses in PyStan format.'''
-    init = {'mu':-1.7,
-            'sigma':0.05,
-            'Q':0.8,
-            'sigo':.7,
-            'L':1100}
-
-    if type == 'gaia':
-        init['L'] = 1100
-
-    return init
-
 def test_magzeropoint(df, init, band = 'Ks'):
     '''Runs the Gaia Pystan model for various values of the parallax zeropoint.'''
     #Define the data
@@ -263,35 +287,23 @@ def test_magzeropoint(df, init, band = 'Ks'):
         print('Completed run on oo_zp: '+str(oo_zp))
     print('Completed full run on '+str(len(oo_zps))+' different parallax zero points.')
 
-def read_paramdict(majorlabel, minorlabel='', all_minor=True):
-    '''Reads in results for either:
-        -A full run series (majorlabel) where the minorlabel is included as a
-            column in the output.
-        -A single run (majorlabel and minorlabel).
-
-        Returns a pandas dataframe.
-    '''
-    loc = __outdir__+majorlabel+'/'
-
-    if (minorlabel == '') & (all_minor == False):
-        print('Please set a minorlabel if you want to read in a single result.')
-        print('all_minor has been set to True to read in all results')
-        all_minor = True
-
-    globlist = glob.glob(loc+'*'+minorlabel+'_*pars*.csv')
-
-    minorlabels = [os.path.basename(globloc).split('_')[1] for globloc in globlist]
-
-    df = pd.DataFrame()
-    for n, globloc in enumerate(globlist):
-        sdf = pd.read_csv(globloc, index_col = 0)
-        if minorlabels[n] != 'pars.csv':
-            sdf[majorlabel] = minorlabels[n]
-        df = df.append(sdf)
-
-    return df
-
 if __name__ == "__main__":
-    print('hey world')
-    # run_ast_test()
-    # test_magzeropoint(read_data()[:100], get_basic_init('gaia'), band='Ks')
+    '''Runs the Gaia Pystan model for various values of the temperature scale.
+    We'll do the Gaia G band in this instance.'''
+    df = read_data() #Call in the Yu+18 data
+    tempdiffs = np.arange(-50, 50, 10)
+    for n, tempdiff in enumerate(tempdiffs):
+        #Use omnitool to calculate G-band magnitude magnitude
+        SC = scalings(df, df.numax, df.dnu, df.Teff + tempdiff,
+                        _numax_err = df.numax_err, _dnu_err = df.dnu_err, _Teff_err = df.Teff_err)
+        Mobs = SC.get_bolmag() - df.BC_GAIA
+        Munc = np.sqrt(SC.get_bolmag_err()**2 + 0.02**2) #We assume an error of 0.02 on the bolometric correction
+
+        dat = {'N':len(df), 'Mobs':Mobs, 'Munc': Munc}
+
+        #Run a stan model on this. Majorlabel = the type of run, Minorlabel contains the temperature scale difference
+        run = run_stan(dat, _init=get_basic_init(type='astero'),
+                        _majorlabel='tempscale', _minorlabel=str(tempdiff), _stantype='astero')
+
+        #Verbose = True saves chains, rhats, and median results. Visual=True saves cornerplot and pystan plot
+        run(verbose=True, visual=True)
