@@ -29,19 +29,20 @@ import glob
 
 from omnitool.literature_values import Av_coeffs
 from omnitool import scalings
+from omnitool.literature_values import Rsol
 
 
 __outdir__ = os.path.expanduser('~')+'/PhD/Gaia_Project/Output/'
 __datdir__ = os.path.expanduser('~')+'/PhD/Gaia_Project/data/KepxDR2/'
 
-__iter__ = 100
+__iter__ = 10000
 
 '''_____'''
 def get_basic_init(type='gaia'):
     '''Returns a basic series of initial guesses in PyStan format.'''
     init = {'mu':-1.7,
             'sigma':0.1,
-            'Q':0.8,
+            'Q':0.95,
             'sigo':4.}
 
     if type == 'gaia':
@@ -75,7 +76,7 @@ def read_paramdict(majorlabel, minorlabel='', all_minor=True):
             sdf[majorlabel] = minorlabels[n]
         df = df.append(sdf)
 
-    return df
+    return df.sort_values(by=majorlabel)
 
 def read_data():
     '''Reads in the Yu et al. 2018 data'''
@@ -188,6 +189,7 @@ class run_stan:
         rhat = s['summary'][:,-1]
         np.savetxt(self.runlabel+'_rhats.txt', rhat)
 
+
     def __call__(self, verbose=True, visual=True):
         self.build_metadata()
         fit = self.run_stan()
@@ -287,23 +289,33 @@ def test_magzeropoint(df, init, band = 'Ks'):
         print('Completed run on oo_zp: '+str(oo_zp))
     print('Completed full run on '+str(len(oo_zps))+' different parallax zero points.')
 
-if __name__ == "__main__":
+def test_temperaturescales(corrections='None', band='K'):
+    if corrections=='None':
+        corr = '_noCorrection'
+    elif corrections=='RC':
+        corr = '_Clump'
+
     '''Runs the Gaia Pystan model for various values of the temperature scale.
     We'll do the Gaia G band in this instance.'''
-    df = read_data() #Call in the Yu+18 data
-    tempdiffs = np.arange(-50, 50, 10)
+    df = read_data()[:1000] #Call in the Yu+18 data
+    tempdiffs = np.arange(-50, 60, 10)
     for n, tempdiff in enumerate(tempdiffs):
-        #Use omnitool to calculate G-band magnitude magnitude
+        #Use omnitool to calculate G-band magnitude magnitude, using a given radius
         SC = scalings(df, df.numax, df.dnu, df.Teff + tempdiff,
                         _numax_err = df.numax_err, _dnu_err = df.dnu_err, _Teff_err = df.Teff_err)
-        Mobs = SC.get_bolmag() - df.BC_GAIA
+        SC.give_corrections(Rcorr = df['R'+corr]*Rsol, Rcorr_err = df['R'+corr+'_err']*Rsol)
+        Mobs = SC.get_bolmag() - df['BC_'+band]
         Munc = np.sqrt(SC.get_bolmag_err()**2 + 0.02**2) #We assume an error of 0.02 on the bolometric correction
 
         dat = {'N':len(df), 'Mobs':Mobs, 'Munc': Munc}
 
         #Run a stan model on this. Majorlabel = the type of run, Minorlabel contains the temperature scale difference
         run = run_stan(dat, _init=get_basic_init(type='astero'),
-                        _majorlabel='tempscale', _minorlabel=str(tempdiff), _stantype='astero')
+                        _majorlabel=band+'_tempscale'+corr, _minorlabel=str(tempdiff), _stantype='astero')
 
         #Verbose = True saves chains, rhats, and median results. Visual=True saves cornerplot and pystan plot
-        run(verbose=True, visual=True)
+        run(verbose=True, visual=False)
+
+if __name__ == "__main__":
+    print('hello')
+    test_temperaturescales(corrections='RC', band='K')
