@@ -18,6 +18,8 @@ import os
 import sys
 import glob
 
+from main import read_paramdict
+
 from omnitool.literature_values import Av_coeffs
 from omnitool import scalings
 from omnitool.literature_values import Rsol
@@ -25,7 +27,7 @@ from omnitool.literature_values import Rsol
 __outdir__ = os.path.expanduser('~')+'/PhD/Gaia_Project/Output/'
 __datdir__ = os.path.expanduser('~')+'/PhD/Gaia_Project/data/KepxDR2/'
 
-__iter__ = int(sys.argv[1])
+__iter__ = int(sys.argv[2])
 
 class run_stan:
     def __init__(self, _dat, _init=0., _majorlabel='', _minorlabel='', _stantype='astero'):
@@ -65,8 +67,8 @@ class run_stan:
             self.verbose = [r'$\mu_{RC} (mag)$',r'$\sigma_{RC} (mag)$',r'$Q$', r'$\sigma_o (mag)$']
 
         if self.data =='gaia':
-            self.pars = ['mu', 'sigma', 'Q', 'sigo', 'L']
-            self.verbose = [r'$\mu_{RC} (mag)$',r'$\sigma_{RC} (mag)$',r'$Q$', r'$\sigma_o (mag)$', r'$L (pc)$']
+            self.pars = ['mu', 'sigma', 'Q', 'sigo', 'L', 'oo_zp']
+            self.verbose = [r'$\mu_{RC} (mag)$',r'$\sigma_{RC} (mag)$',r'$Q$', r'$\sigma_o (mag)$', r'$L (pc)$', r'$\varpi_{zp}$']
 
     def read_stan(self):
         '''Reads the existing stanmodels'''
@@ -94,11 +96,11 @@ class run_stan:
 
         if self.init != 0.:
             fit = sm.sampling(data = self.dat,
-                        iter= __iter__, chains=4,
-                        init = [self.init, self.init, self.init, self.init])
+                        iter= __iter__, chains=2,
+                        init = [self.init, self.init])
         else:
             fit = sm.sampling(data = self.dat,
-                        iter= __iter__, chains=4)
+                        iter= __iter__, chains=2)
 
         return fit
 
@@ -164,29 +166,67 @@ def get_basic_init(type='gaia'):
     return init
 
 if __name__ == "__main__":
-    corrections = sys.argv[2]
-    band = sys.argv[3]
-    tempdiff = np.float(sys.argv[4])
-
+    type = sys.argv[1]
+    corrections = sys.argv[3]
+    band = sys.argv[4]
+    tempdiff = np.float(sys.argv[5])
     if corrections=='None':
         corr = '_noCorrection'
     elif corrections=='RC':
         corr = '_Clump'
 
-    df = read_data()[:500] #Call in the Yu+18 data
+    df = read_data()[:100] #Call in the Yu+18 data
 
-    #Use omnitool to calculate G-band magnitude magnitude, using a given radius
-    SC = scalings(df, df.numax, df.dnu, df.Teff + tempdiff,
-                    _numax_err = df.numax_err, _dnu_err = df.dnu_err, _Teff_err = df.Teff_err)
-    SC.give_corrections(Rcorr = df['R'+corr]*Rsol, Rcorr_err = df['R'+corr+'_err']*Rsol)
-    Mobs = SC.get_bolmag() - df['BC_'+band]
-    Munc = np.sqrt(SC.get_bolmag_err()**2 + 0.02**2) #We assume an error of 0.02 on the bolometric correction
+    if type == 'astero':
+        #Use omnitool to calculate G-band magnitude magnitude, using a given radius
+        SC = scalings(df, df.numax, df.dnu, df.Teff + tempdiff,
+                        _numax_err = df.numax_err, _dnu_err = df.dnu_err, _Teff_err = df.Teff_err)
+        SC.give_corrections(Rcorr = df['R'+corr]*Rsol, Rcorr_err = df['R'+corr+'_err']*Rsol)
+        Mobs = SC.get_bolmag() - df['BC_'+band]
+        Munc = np.sqrt(SC.get_bolmag_err()**2 + 0.02**2) #We assume an error of 0.02 on the bolometric correction
 
-    dat = {'N':len(df), 'Mobs':Mobs, 'Munc': Munc}
+        dat = {'N':len(df), 'Mobs':Mobs, 'Munc': Munc}
 
-    #Run a stan model on this. Majorlabel = the type of run, Minorlabel contains the temperature scale difference
-    run = run_stan(dat, _init=get_basic_init(type='astero'),
-                    _majorlabel=band+'_tempscale'+corr, _minorlabel=str(tempdiff), _stantype='astero')
+        #Run a stan model on this. Majorlabel = the type of run, Minorlabel contains the temperature scale difference
+        run = run_stan(dat, _init=get_basic_init(type='astero'),
+                        _majorlabel=band+'_tempscale'+corr, _minorlabel=str(tempdiff), _stantype='astero')
 
-    #Verbose = True saves chains, rhats, and median results. Visual=True saves cornerplot and pystan plot
-    run(verbose=True, visual=True)
+        #Verbose = True saves chains, rhats, and median results. Visual=True saves cornerplot and pystan plot
+        run(verbose=True, visual=True)
+
+
+    if type == 'gaia':
+        '''NOTE: NEED TO GENERALISE FOR OTHER THAN K'''
+        if band == 'K':
+            rlebv = 'Aks'
+        elif band == 'GAIA':
+            rlebv = 'Ag'
+        majorlabel = band+'_tempscale'+corr
+        minorlabel = str(tempdiff)
+
+        astres = read_paramdict(majorlabel, minorlabel, 'astero')
+
+        dat = {'N':len(df),
+                'm': df[band+'mag'].values,
+                'm_err': df['e_'+band+'mag'].values,
+                'oo': df.parallax.values,
+                'oo_err': df.parallax_error.values,
+                'RlEbv': df[rlebv].values,
+                'mu_init': astres.mu.values[0],
+                'mu_spread': astres.mu_std.values[0],
+                'sigma_init': astres.sigma.values[0],
+                'sigma_spread': astres.sigma_std.values[0]}
+
+        init= {'mu': astres.mu.values[0],
+                'sigma': astres.sigma.values[0],
+                'Q': astres.Q.values[0],
+                'sigo': astres.sigo.values[0],
+                'L': 1000.,
+                'oo_zp':-0.3}
+
+        #Run a stan model on this. Majorlabel = the type of run, Minorlabel contains the temperature scale difference
+        run = run_stan(dat, _init= init,
+                        _majorlabel=majorlabel, _minorlabel=str(tempdiff), _stantype='gaia')
+
+        #Verbose = True saves chains, rhats, and median results. Visual=True saves cornerplot and pystan plot
+        run(verbose=True, visual=True)

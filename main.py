@@ -29,7 +29,7 @@ import glob
 
 from omnitool.literature_values import Av_coeffs
 from omnitool import scalings
-from omnitool.literature_values import Rsol
+from omnitool.literature_values import Rsol, Lsol, stefboltz
 
 
 __outdir__ = os.path.expanduser('~')+'/PhD/Gaia_Project/Output/'
@@ -50,7 +50,7 @@ def get_basic_init(type='gaia'):
 
     return init
 
-def read_paramdict(majorlabel, minorlabel='', all_minor=True):
+def read_paramdict(majorlabel, minorlabel='', sort='astero'):
     '''Reads in results for either:
         -A full run series (majorlabel) where the minorlabel is included as a
             column in the output.
@@ -60,12 +60,10 @@ def read_paramdict(majorlabel, minorlabel='', all_minor=True):
     '''
     loc = __outdir__+majorlabel+'/'
 
-    if (minorlabel == '') & (all_minor == False):
-        print('Please set a minorlabel if you want to read in a single result.')
-        print('all_minor has been set to True to read in all results')
-        all_minor = True
-
-    globlist = glob.glob(loc+'*'+minorlabel+'_*pars*.csv')
+    if minorlabel != '':
+        globlist = glob.glob(loc+sort+'_'+str(float(minorlabel))+'_*pars*.csv')
+    else:
+        globlist = glob.glob(loc+sort+'*_*pars*.csv')
 
     minorlabels = [os.path.basename(globloc).split('_')[1] for globloc in globlist]
 
@@ -317,5 +315,21 @@ def test_temperaturescales(corrections='None', band='K'):
         run(verbose=True, visual=False)
 
 if __name__ == "__main__":
-    print('hello')
-    test_temperaturescales(corrections='RC', band='K')
+    knoc = read_paramdict('K_tempscale_noCorrection')
+    krc = read_paramdict('K_tempscale_Clump')
+    knoc['tempscale'] = knoc['K_tempscale_noCorrection'].str.strip()
+    knoc['tempscale'] = knoc.tempscale.astype(float)
+    krc['tempscale'] = krc['K_tempscale_Clump'].str.strip()
+    krc['tempscale'] = krc.tempscale.astype(float)
+
+    ky = np.linspace(knoc.mu.max(), knoc.mu.min())
+    kx = np.linspace(knoc.tempscale.min(), knoc.tempscale.max())
+
+    plt.errorbar(knoc.tempscale, knoc.mu, yerr = knoc.mu_std, fmt='o', capsize=5, label='No Correction')
+    plt.errorbar(krc.tempscale, krc.mu, yerr = krc.mu_std, fmt='o',  capsize=5,label='RC Correction')
+    plt.plot(kx, ky)
+    plt.xlabel('Change in Temperature Scale (K)')
+    plt.ylabel('Position of RC in K band')
+    plt.legend(fontsize=20)
+    plt.title('Position of the RC in absolute K-band mag for a change in Temperature scale.', fontsize=15)
+    plt.show()
