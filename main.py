@@ -32,8 +32,11 @@ from omnitool import scalings
 from omnitool.literature_values import Rsol, Lsol, stefboltz
 
 
-__outdir__ = os.path.expanduser('~')+'/PhD/Gaia_Project/Output/'
-__datdir__ = os.path.expanduser('~')+'/PhD/Gaia_Project/data/KepxDR2/'
+__outdir__ = os.path.expanduser('~')+'/Projects/Oli/Output/'
+__datdir__ = os.path.expanduser('~')+'/Projects/Oli/Data/KepxDR2/'
+
+# __outdir__ = os.path.expanduser('~')+'/PhD/Gaia_Project/Output/'
+# __datdir__ = os.path.expanduser('~')+'/PhD/Gaia_Project/data/KepxDR2/'
 
 __iter__ = 10000
 

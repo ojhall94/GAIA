@@ -24,8 +24,11 @@ from omnitool.literature_values import Av_coeffs
 from omnitool import scalings
 from omnitool.literature_values import Rsol
 
-__outdir__ = os.path.expanduser('~')+'/PhD/Gaia_Project/Output/'
-__datdir__ = os.path.expanduser('~')+'/PhD/Gaia_Project/data/KepxDR2/'
+__outdir__ = os.path.expanduser('~')+'/Projects/Oli/Output/'
+__datdir__ = os.path.expanduser('~')+'/Projects/Oli/Data/'
+
+# __outdir__ = os.path.expanduser('~')+'/PhD/Gaia_Project/Output/'
+# __datdir__ = os.path.expanduser('~')+'/PhD/Gaia_Project/data/KepxDR2/'
 
 __iter__ = int(sys.argv[2])
 
