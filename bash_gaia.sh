@@ -9,13 +9,16 @@
 
 #Tempdiff in K, no correction
 for i in {-50..50..10}; do
-     python bash_stan.py 'gaia' 500 'None' 'K' $i
+     python3 bash_stan.py 'gaia' 500 'None' 'K' $i
 done
+cp astrostan.pkl ../Output
 
 #Temp diff in K, with correction
 for i in {-50..50..10}; do
-     python bash_stan.py 'gaia' 10000 'RC' 'K' $i
+     python3 bash_stan.py 'gaia' 10000 'RC' 'K' $i
 done
+cp astrostan.pkl ../Output
+
 
 # #Tempdiff in GAIA, no correction
 # for i in {-50..50..10}; do
