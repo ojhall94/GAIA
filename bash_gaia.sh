@@ -9,7 +9,7 @@
 
 #Tempdiff in K, no correction
 for i in {-50..50..10}; do
-     python3 bash_stan.py 'gaia' 10000 'None' 'K' $i
+     python3 bash_stan.py 'gaia' 500 'None' 'K' $i
 done
 cp astrostan.pkl ../Output
 

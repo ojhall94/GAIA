@@ -32,8 +32,8 @@ __datdir__ = os.path.expanduser('~')+'/Projects/Oli/Data/'
 
 __iter__ = int(sys.argv[2])
 
-def create_asterostan(overwrite=True):
-    asterostan = '''
+def create_astrostan(overwrite=True):
+    astrostan = '''
     functions {
         real bailerjones_lpdf(real r, real L){
             return log((1/(2*L^3)) * (r*r) * exp(-r/L));
@@ -99,7 +99,7 @@ def create_asterostan(overwrite=True):
         //Calculable properties
         for (n in 1:N){
             m_true[n] = M_infd[n] + 5*log10(r_infd[n]) - 5 + Ai[n];
-            oo_exp[n] = (1000./r_infd[n]) + oo_zp;
+            oo_exp[n] = (1000./r_infd[n]) + (oo_zp/1000.);
         }
 
         //Observables [p(D | theta_rc, L, alpha)]
@@ -107,7 +107,7 @@ def create_asterostan(overwrite=True):
         m ~ normal(m_true, m_err); //Measurement uncertainty on magnitude
 
         //
-        oo_zp ~ normal(0.0, 0.5); // Prior on the offset!
+        oo_zp ~ normal(0.0, 500.); // Prior on the offset!
 
     }
 
@@ -115,18 +115,18 @@ def create_asterostan(overwrite=True):
     model_path = 'astrostan.pkl'
     if overwrite:
         print('Updating Stan model')
-        sm = pystan.StanModel(model_code = asterostan, model_name='astrostan')
+        sm = pystan.StanModel(model_code = astrostan, model_name='astrostan')
         with open(model_path, 'wb') as f:
             pickle.dump(sm, f)
 
     if not os.path.isfile(model_path):
         print('Saving Stan Model')
-        sm = pystan.StanModel(model_code = asterostan, model_name='astrostan')
+        sm = pystan.StanModel(model_code = astrostan, model_name='astrostan')
         with open(model_path, 'wb') as f:
             pickle.dump(sm, f)
 
 
-def create_astrostan(overwrite=True):
+def create_asterostan(overwrite=True):
     asterostan = '''
     data {
         int<lower = 0> N;
@@ -178,6 +178,15 @@ def create_astrostan(overwrite=True):
         with open(model_path, 'wb') as f:
             pickle.dump(sm, f)
 
+def update_stan(model='gaia'):
+    if model == 'gaia':
+        create_astrostan(overwrite=True)
+    if model == 'astero':
+        create_asterostan(overwrite=True)
+    if model == 'both':
+        create_astrostan(overwrite=True)
+        create_asterostan(overwrite=True)
+
 class run_stan:
     def __init__(self, _dat, _init=0., _majorlabel='', _minorlabel='', _stantype='astero'):
         '''Core PyStan class.
@@ -217,7 +226,7 @@ class run_stan:
 
         if self.data =='gaia':
             self.pars = ['mu', 'sigma', 'Q', 'sigo', 'L', 'oo_zp']
-            self.verbose = [r'$\mu_{RC} (mag)$',r'$\sigma_{RC} (mag)$',r'$Q$', r'$\sigma_o (mag)$', r'$L (pc)$', r'$\varpi_{zp}$']
+            self.verbose = [r'$\mu_{RC} (mag)$',r'$\sigma_{RC} (mag)$',r'$Q$', r'$\sigma_o (mag)$', r'$L (pc)$', r'$\varpi_{zp} (\mu as)$']
 
     def read_stan(self):
         '''Reads the existing stanmodels'''
@@ -317,6 +326,8 @@ def get_basic_init(type='gaia'):
     return init
 
 if __name__ == "__main__":
+    # update_stan(model='gaia')
+    # sys.exit()
     type = sys.argv[1]
     corrections = sys.argv[3]
     band = sys.argv[4]
@@ -326,7 +337,7 @@ if __name__ == "__main__":
     elif corrections=='RC':
         corr = '_Clump'
 
-    df = read_data()[:500] #Call in the Yu+18 data
+    df = read_data()[:] #Call in the Yu+18 data
 
     if type == 'astero':
         #Use omnitool to calculate G-band magnitude magnitude, using a given radius
@@ -373,7 +384,7 @@ if __name__ == "__main__":
                 'Q': astres.Q.values[0],
                 'sigo': astres.sigo.values[0],
                 'L': 1000.,
-                'oo_zp':-0.3}
+                'oo_zp':-30.}
 
         print(init)
         # #Run a stan model on this. Majorlabel = the type of run, Minorlabel contains the temperature scale difference
