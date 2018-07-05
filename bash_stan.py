@@ -337,7 +337,7 @@ if __name__ == "__main__":
     elif corrections=='RC':
         corr = '_Clump'
 
-    df = read_data()[:] #Call in the Yu+18 data
+    df = read_data()[:2000] #Call in the Yu+18 data
 
     if type == 'astero':
         #Use omnitool to calculate G-band magnitude magnitude, using a given radius
