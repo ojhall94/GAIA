@@ -24,11 +24,11 @@ from omnitool.literature_values import Av_coeffs
 from omnitool import scalings
 from omnitool.literature_values import Rsol
 
-__outdir__ = os.path.expanduser('~')+'/Projects/Oli/Output/'
-__datdir__ = os.path.expanduser('~')+'/Projects/Oli/Data/'
+# __outdir__ = os.path.expanduser('~')+'/Projects/Oli/Output/'
+# __datdir__ = os.path.expanduser('~')+'/Projects/Oli/Data/'
 
-# __outdir__ = os.path.expanduser('~')+'/PhD/Gaia_Project/Output/'
-# __datdir__ = os.path.expanduser('~')+'/PhD/Gaia_Project/data/KepxDR2/'
+__outdir__ = os.path.expanduser('~')+'/PhD/Gaia_Project/Output/'
+__datdir__ = os.path.expanduser('~')+'/PhD/Gaia_Project/data/KepxDR2/'
 
 __iter__ = int(sys.argv[2])
 
@@ -124,7 +124,6 @@ def create_astrostan(overwrite=True):
         sm = pystan.StanModel(model_code = astrostan, model_name='astrostan')
         with open(model_path, 'wb') as f:
             pickle.dump(sm, f)
-
 
 def create_asterostan(overwrite=True):
     asterostan = '''
@@ -326,7 +325,7 @@ def get_basic_init(type='gaia'):
     return init
 
 if __name__ == "__main__":
-    # update_stan(model='gaia')
+    update_stan(model='gaia')
     # sys.exit()
     type = sys.argv[1]
     corrections = sys.argv[3]
@@ -337,7 +336,7 @@ if __name__ == "__main__":
     elif corrections=='RC':
         corr = '_Clump'
 
-    df = read_data()[:] #Call in the Yu+18 data
+    df = read_data()[:100] #Call in the Yu+18 data
 
     if type == 'astero':
         #Use omnitool to calculate G-band magnitude magnitude, using a given radius
