@@ -32,6 +32,152 @@ __datdir__ = os.path.expanduser('~')+'/Projects/Oli/Data/'
 
 __iter__ = int(sys.argv[2])
 
+def create_asterostan(overwrite=True):
+    asterostan = '''
+    functions {
+        real bailerjones_lpdf(real r, real L){
+            return log((1/(2*L^3)) * (r*r) * exp(-r/L));
+        }
+    }
+    data {
+        int<lower = 0> N;
+        real m[N];
+        real<lower=0> m_err[N];
+        real oo[N];
+        real oo_err[N];
+        real<lower=0> RlEbv[N];
+
+        real mu_init;
+        real mu_spread;
+    }
+    parameters {
+        //Hyperparameters
+        real mu;
+        real<lower=0.> sigma;
+        real<lower=1.> sigo;
+        real<lower=0.5,upper=1.> Q;
+        real<lower=.1, upper=4000.> L;
+
+        //Latent parameters
+        real M_infd_std[N];
+        real Ai[N];
+        real<lower = 1.> r_infd[N];
+
+        // Parallax offset
+        real oo_zp;
+    }
+    transformed parameters{
+        //Inferred and transformed parameters
+        real M_infd[N];
+
+        //Operations
+        for (n in 1:N){
+            M_infd[n] = mu + sigma * M_infd_std[n]; //Rescale the M fit
+        }
+    }
+    model {
+        //Define calculable properties
+        real m_true[N];
+        real oo_exp[N];
+
+        //Hyperparameters in true space [p(theta_rc, L)]
+        mu ~ normal(mu_init, mu_spread); // Prior from seismo
+        sigma ~ normal(0., 1.); // Spread from seismo
+        Q ~ normal(1., .25);
+        sigo ~ normal(3.0, 1.0);
+        L ~ uniform(0.1, 4000.);
+
+        //Latent parameters [p(alpha_i | theta_rc, L)]
+        Ai ~ normal(RlEbv, 0.03);
+        for (n in 1:N){
+            r_infd[n] ~ bailerjones(L);
+            target += log_mix(Q,
+                normal_lpdf(M_infd_std[n] | 0., 1.),
+                normal_lpdf(M_infd_std[n] | 0., sigo));
+        }
+
+        //Calculable properties
+        for (n in 1:N){
+            m_true[n] = M_infd[n] + 5*log10(r_infd[n]) - 5 + Ai[n];
+            oo_exp[n] = (1000./r_infd[n]) + oo_zp;
+        }
+
+        //Observables [p(D | theta_rc, L, alpha)]
+        oo ~ normal(oo_exp, oo_err); //Measurement uncertainty on parallax
+        m ~ normal(m_true, m_err); //Measurement uncertainty on magnitude
+
+        //
+        oo_zp ~ normal(0.0, 0.5); // Prior on the offset!
+
+    }
+
+    '''
+    model_path = 'astrostan.pkl'
+    if overwrite:
+        print('Updating Stan model')
+        sm = pystan.StanModel(model_code = asterostan, model_name='astrostan')
+        with open(model_path, 'wb') as f:
+            pickle.dump(sm, f)
+
+    if not os.path.isfile(model_path):
+        print('Saving Stan Model')
+        sm = pystan.StanModel(model_code = asterostan, model_name='astrostan')
+        with open(model_path, 'wb') as f:
+            pickle.dump(sm, f)
+
+
+def create_astrostan(overwrite=True):
+    asterostan = '''
+    data {
+        int<lower = 0> N;
+        real Mobs[N];
+        real Munc[N];
+    }
+    parameters {
+        //Hyperparameters
+        real mu;
+        real <lower=0.> sigma;
+        real <lower=0.5,upper=1.> Q;
+        real <lower=1.> sigo;
+
+        //Latent Parameters
+        real Mtrue_std[N];
+    }
+    transformed parameters{
+        real Mtrue[N];
+
+        for (n in 1:N){
+            Mtrue[n] = mu + sigma * Mtrue_std[n];
+        }
+    }
+    model {
+        mu ~ normal(-1.6, 1.0);  //p(theta)
+        sigma ~ normal(0.0, 1.0); //''
+        sigo ~ normal(3.0, 2.0);  //''
+        Q ~ normal(1., 0.1);    //''
+
+        Mobs ~ normal(Mtrue, Munc); //p(D | theta, alpha)
+
+        //p(alpha | theta)
+        for (n in 1:N)
+            target += log_mix(Q,
+                        normal_lpdf(Mtrue_std[n] | 0., 1.),
+                        normal_lpdf(Mtrue_std[n] | 0., sigo));
+    }
+    '''
+    model_path = 'asterostan.pkl'
+    if overwrite:
+        print('Updating Stan model')
+        sm = pystan.StanModel(model_code = asterostan, model_name='astrostan')
+        with open(model_path, 'wb') as f:
+            pickle.dump(sm, f)
+
+    if not os.path.isfile(model_path):
+        print('Saving Stan Model')
+        sm = pystan.StanModel(model_code = asterostan, model_name='astrostan')
+        with open(model_path, 'wb') as f:
+            pickle.dump(sm, f)
+
 class run_stan:
     def __init__(self, _dat, _init=0., _majorlabel='', _minorlabel='', _stantype='astero'):
         '''Core PyStan class.
@@ -81,6 +227,7 @@ class run_stan:
                 sm = pickle.load(open(model_path, 'rb'))
             else:
                 print('No stan model found')
+                create_asterostan(overwrite=True)
                 sys.exit()
 
         if self.data == 'gaia':
@@ -89,6 +236,7 @@ class run_stan:
                 sm = pickle.load(open(model_path, 'rb'))
             else:
                 print('No stan model found')
+                create_astrostan(overwrite=True)
                 sys.exit()
 
         return sm
@@ -178,7 +326,7 @@ if __name__ == "__main__":
     elif corrections=='RC':
         corr = '_Clump'
 
-    df = read_data()[:100] #Call in the Yu+18 data
+    df = read_data()[:500] #Call in the Yu+18 data
 
     if type == 'astero':
         #Use omnitool to calculate G-band magnitude magnitude, using a given radius
@@ -216,9 +364,9 @@ if __name__ == "__main__":
                 'oo_err': df.parallax_error.values,
                 'RlEbv': df[rlebv].values,
                 'mu_init': astres.mu.values[0],
-                'mu_spread': astres.mu_std.values[0],
-                'sigma_init': astres.sigma.values[0],
-                'sigma_spread': astres.sigma_std.values[0]}
+                'mu_spread': astres.mu_std.values[0]}
+                # 'sigma_init': astres.sigma.values[0],
+                # 'sigma_spread': astres.sigma_std.values[0]}
 
         init= {'mu': astres.mu.values[0],
                 'sigma': astres.sigma.values[0],
@@ -227,7 +375,8 @@ if __name__ == "__main__":
                 'L': 1000.,
                 'oo_zp':-0.3}
 
-        #Run a stan model on this. Majorlabel = the type of run, Minorlabel contains the temperature scale difference
+        print(init)
+        # #Run a stan model on this. Majorlabel = the type of run, Minorlabel contains the temperature scale difference
         run = run_stan(dat, _init= init,
                         _majorlabel=majorlabel, _minorlabel=str(tempdiff), _stantype='gaia')
 

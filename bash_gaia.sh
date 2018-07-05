@@ -11,11 +11,14 @@
 for i in {-50..50..10}; do
      python3 bash_stan.py 'gaia' 10000 'None' 'K' $i
 done
+cp astrostan.pkl ../Output
 
 #Temp diff in K, with correction
 for i in {-50..50..10}; do
      python3 bash_stan.py 'gaia' 10000 'RC' 'K' $i
 done
+cp astrostan.pkl ../Output
+
 
 # #Tempdiff in GAIA, no correction
 # for i in {-50..50..10}; do
