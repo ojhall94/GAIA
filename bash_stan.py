@@ -325,6 +325,10 @@ def get_basic_init(type='gaia'):
     return init
 
 if __name__ == "__main__":
+    '''
+    Update
+
+
     update_stan(model='gaia')
     # sys.exit()
     type = sys.argv[1]

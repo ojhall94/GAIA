@@ -1,18 +1,19 @@
 #!/bin/bash
 
 #Arguments are:
-#[1]: Iterations
-#[2]: corrections [None, RC]
-#[3]: band [J, H, K, GAIA]
-#[4]: tempdiff
+#[1]: Type
+#[2]: Iterations
+#[3]: corrections [None, RC]
+#[4]: band [J, H, K, GAIA]
+#[5]: tempdiff
 
 #Tempdiff in K, no correction
-for i in {-500..500..100}; do
+for i in {-50..50..10}; do
      python bash_stan.py 'astero' 5000 'None' 'K' $i
 done
 
 #Temp diff in K, with correction
-for i in {-500..500..100}; do
+for i in {-50..50..10}; do
      python bash_stan.py 'astero' 5000 'RC' 'K' $i
 done
 
