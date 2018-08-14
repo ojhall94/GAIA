@@ -18,11 +18,15 @@ import os
 import sys
 import glob
 
+sys.path.append(os.path.expanduser('~')+'/PhD/Hacks_and_Mocks/asfgrid/')
+import asfgrid
+
 from main import read_paramdict
 
-from omnitool.literature_values import Av_coeffs
+from omnitool.literature_values import Av_coeffs, hawkvals
 from omnitool import scalings
 from omnitool.literature_values import Rsol
+
 
 # __outdir__ = os.path.expanduser('~')+'/Projects/Oli/Output/'
 # __datdir__ = os.path.expanduser('~')+'/Projects/Oli/Data/'
@@ -324,13 +328,23 @@ def get_basic_init(type='gaia'):
 
     return init
 
+def get_fdnu(df):
+    asf = asfgrid.Seism()
+    evstate = np.ones(len(df))*2
+    logz = np.log10(df.Z.values)
+    teff = df.Teff.values + tempdiff
+    dnu = df.dnu.values
+    numax = df.numax.values
+
+    mass, radius = asf.get_mass_radius(evstate, logz, teff, dnu, numax)
+    logg = asf.mr2logg(mass, radius)
+    fdnu = asf._get_fdnu(evstate, logz, teff, mass, logg, fill_value='nearest')
+
+    return fdnu
+
 if __name__ == "__main__":
-    '''
-    Update
+    # update_stan(model='gaia')
 
-
-    update_stan(model='gaia')
-    # sys.exit()
     type = sys.argv[1]
     corrections = sys.argv[3]
     band = sys.argv[4]
@@ -343,14 +357,24 @@ if __name__ == "__main__":
     df = read_data()[:100] #Call in the Yu+18 data
 
     if type == 'astero':
+        #Use asfgrid to calculate the correction to the scaling relations
+        if corrections == 'None':
+            fdnu = np.ones(len(df))
+        if corrections == 'RC':
+            fdnu = get_fdnu(df)
+
         #Use omnitool to calculate G-band magnitude magnitude, using a given radius
-        SC = scalings(df, df.numax, df.dnu, df.Teff + tempdiff,
+        SC = scalings(df.numax, df.dnu, df.Teff + tempdiff,
                         _numax_err = df.numax_err, _dnu_err = df.dnu_err, _Teff_err = df.Teff_err)
-        SC.give_corrections(Rcorr = df['R'+corr]*Rsol, Rcorr_err = df['R'+corr+'_err']*Rsol)
+        SC.give_corrections(fdnu = fdnu)
         Mobs = SC.get_bolmag() - df['BC_'+band]
         Munc = np.sqrt(SC.get_bolmag_err()**2 + 0.02**2) #We assume an error of 0.02 on the bolometric correction
 
-        dat = {'N':len(df), 'Mobs':Mobs, 'Munc': Munc}
+        #Set up the data
+        dat = {'N':len(df), 'Mobs':Mobs, 'Munc': Munc, 'muH' : hawkvals[band]}
+
+        #Set up initial guesses
+        init = {'mu':hawkvals[band], 'sigma':0.1, 'Q':0.95, 'sigo':4.}
 
         #Run a stan model on this. Majorlabel = the type of run, Minorlabel contains the temperature scale difference
         run = run_stan(dat, _init=get_basic_init(type='astero'),
