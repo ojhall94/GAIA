@@ -45,11 +45,11 @@ def create_astrostan(overwrite=True):
     }
     data {
         int<lower = 0> N;
-        real m[N];
-        real<lower=0> m_err[N];
-        real oo[N];
-        real oo_err[N];
-        real<lower=0> RlEbv[N];
+        vector[N] m;
+        vector[N]<lower=0> m_err;
+        vector[N] oo;
+        cov_matrix[N] Sigma;
+        vector<lower=0>[N] RlEbv[N];
 
         real mu_init;
         real mu_spread;
@@ -63,16 +63,16 @@ def create_astrostan(overwrite=True):
         real<lower=.1, upper=4000.> L;
 
         //Latent parameters
-        real M_infd_std[N];
-        real Ai[N];
-        real<lower = 1.> r_infd[N];
+        vector[N] M_infd_std;
+        vector[N] Ai;
+        vector<lower = 1.>[N] r_infd;
 
         // Parallax offset
         real oo_zp;
     }
     transformed parameters{
         //Inferred and transformed parameters
-        real M_infd[N];
+        vector[N] M_infd;
 
         //Operations
         for (n in 1:N){
@@ -81,18 +81,19 @@ def create_astrostan(overwrite=True):
     }
     model {
         //Define calculable properties
-        real m_true[N];
-        real oo_exp[N];
+        vector[N] m_true;
+        vector[N] oo_exp;
 
-        //Hyperparameters in true space [p(theta_rc, L)]
+        //Hyperparameters [p(theta_rc, L)]
         mu ~ normal(mu_init, mu_spread); // Prior from seismo
-        sigma ~ normal(0., 1.); // Spread from seismo
+        sigma ~ normal(0., 1.);
         Q ~ normal(1., .25);
         sigo ~ normal(3.0, 1.0);
-        L ~ uniform(0.1, 4000.);
+        L ~ uniform(0.1, 4000.);   // Prior on the length scale
+        oo_zp ~ normal(0.0, 500.); // Prior on the offset (in mu as)
 
         //Latent parameters [p(alpha_i | theta_rc, L)]
-        Ai ~ normal(RlEbv, 0.03);
+        Ai ~ normal(RlEbv, 0.05);
         for (n in 1:N){
             r_infd[n] ~ bailerjones(L);
             target += log_mix(Q,
@@ -107,12 +108,8 @@ def create_astrostan(overwrite=True):
         }
 
         //Observables [p(D | theta_rc, L, alpha)]
-        oo ~ normal(oo_exp, oo_err); //Measurement uncertainty on parallax
+        oo ~ multi_normal(oo_exp, Sigma); //Measurement uncertainty on parallax
         m ~ normal(m_true, m_err); //Measurement uncertainty on magnitude
-
-        //
-        oo_zp ~ normal(0.0, 500.); // Prior on the offset!
-
     }
 
     '''
@@ -133,8 +130,9 @@ def create_asterostan(overwrite=True):
     asterostan = '''
     data {
         int<lower = 0> N;
-        real Mobs[N];
-        real Munc[N];
+        vector[n] Mobs;
+        vector[N] Munc;
+        real muH;
     }
     parameters {
         //Hyperparameters
@@ -144,17 +142,17 @@ def create_asterostan(overwrite=True):
         real <lower=1.> sigo;
 
         //Latent Parameters
-        real Mtrue_std[N];
+        vector[N] Mtrue_std;
     }
     transformed parameters{
-        real Mtrue[N];
+        vector[N] Mtrue;
 
         for (n in 1:N){
             Mtrue[n] = mu + sigma * Mtrue_std[n];
         }
     }
     model {
-        mu ~ normal(-1.6, 1.0);  //p(theta)
+        mu ~ normal(muH, 1.0);  //p(theta)
         sigma ~ normal(0.0, 1.0); //''
         sigo ~ normal(3.0, 2.0);  //''
         Q ~ normal(1., 0.1);    //''
@@ -343,7 +341,9 @@ def get_fdnu(df):
     return fdnu
 
 if __name__ == "__main__":
-    # update_stan(model='gaia')
+    update_stan(model='gaia')
+
+    '''TEST BUILD'''
 
     type = sys.argv[1]
     corrections = sys.argv[3]
