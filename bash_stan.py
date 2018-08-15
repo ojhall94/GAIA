@@ -17,6 +17,16 @@ import pickle
 import os
 import sys
 import glob
+import argparse
+parser = argparse.ArgumentParser(description='Run our PyStan model on some data')
+parser.add_argument('type', type=str, choices=['astero', 'gaia'], help='Choice of PyStan model.')
+parser.add_argument('iters', type=int, help='Number of MCMC iterations in PyStan.')
+parser.add_argument('corrections', type=str, choices=['None', 'RC'], help='Choice of corrections to the seismic scaling relations.')
+parser.add_argument('band', type=str, choices=['K','J','H','GAIA'], help='Choice of photometric passband.')
+parser.add_argument('tempdiff', type=float, help='Perturbation to the temperature values in K')
+parser.add_argument('--testing', '-t', action='store_const', const=True, default=False, help='Turn on to output results to a test_build folder')
+parser.add_argument('--update', '-u', action='store_const', const=True, default=False, help='Turn on to update the PyStan model you choose to run')
+args = parser.parse_args()
 
 sys.path.append(os.path.expanduser('~')+'/PhD/Hacks_and_Mocks/asfgrid/')
 import asfgrid
@@ -34,7 +44,7 @@ from omnitool.literature_values import Rsol
 __outdir__ = os.path.expanduser('~')+'/PhD/Gaia_Project/Output/'
 __datdir__ = os.path.expanduser('~')+'/PhD/Gaia_Project/data/KepxDR2/'
 
-__iter__ = int(sys.argv[2])
+__iter__ = args.iters
 
 def create_astrostan(overwrite=True):
     astrostan = '''
@@ -46,10 +56,10 @@ def create_astrostan(overwrite=True):
     data {
         int<lower = 0> N;
         vector[N] m;
-        vector[N]<lower=0> m_err;
+        vector<lower=0>[N] m_err;
         vector[N] oo;
         cov_matrix[N] Sigma;
-        vector<lower=0>[N] RlEbv[N];
+        vector<lower=0>[N] RlEbv;
 
         real mu_init;
         real mu_spread;
@@ -314,6 +324,32 @@ def read_data():
     df = pd.read_csv(sfile)
     return df
 
+def read_paramdict(majorlabel, minorlabel='', sort='astero'):
+    '''Reads in results for either:
+        -A full run series (majorlabel) where the minorlabel is included as a
+            column in the output.
+        -A single run (majorlabel and minorlabel).
+
+        Returns a pandas dataframe.
+    '''
+    loc = __outdir__+majorlabel+'/'
+
+    if minorlabel != '':
+        globlist = glob.glob(loc+sort+'_'+str(float(minorlabel))+'_*pars*.csv')
+    else:
+        globlist = glob.glob(loc+sort+'*_*pars*.csv')
+
+    minorlabels = [os.path.basename(globloc).split('_')[1] for globloc in globlist]
+
+    df = pd.DataFrame()
+    for n, globloc in enumerate(globlist):
+        sdf = pd.read_csv(globloc, index_col = 0)
+        if minorlabels[n] != 'pars.csv':
+            sdf[majorlabel] = minorlabels[n]
+        df = df.append(sdf)
+
+    return df.sort_values(by=majorlabel)
+
 def get_basic_init(type='gaia'):
     '''Returns a basic series of initial guesses in PyStan format.'''
     init = {'mu':-1.7,
@@ -341,14 +377,13 @@ def get_fdnu(df):
     return fdnu
 
 if __name__ == "__main__":
-    update_stan(model='gaia')
+    if args.update:
+        update_stan(model='gaia')
 
-    '''TEST BUILD'''
-
-    type = sys.argv[1]
-    corrections = sys.argv[3]
-    band = sys.argv[4]
-    tempdiff = np.float(sys.argv[5])
+    type = args.type
+    corrections = args.corrections
+    band = args.band
+    tempdiff = args.tempdiff
     if corrections=='None':
         corr = '_noCorrection'
     elif corrections=='RC':
@@ -371,14 +406,20 @@ if __name__ == "__main__":
         Munc = np.sqrt(SC.get_bolmag_err()**2 + 0.02**2) #We assume an error of 0.02 on the bolometric correction
 
         #Set up the data
-        dat = {'N':len(df), 'Mobs':Mobs, 'Munc': Munc, 'muH' : hawkvals[band]}
+        dat = {'N':len(df), 'Mobs':Mobs, 'Munc':Munc, 'muH':hawkvals[band]}
 
         #Set up initial guesses
         init = {'mu':hawkvals[band], 'sigma':0.1, 'Q':0.95, 'sigo':4.}
 
-        #Run a stan model on this. Majorlabel = the type of run, Minorlabel contains the temperature scale difference
-        run = run_stan(dat, _init=get_basic_init(type='astero'),
-                        _majorlabel=band+'_tempscale'+corr, _minorlabel=str(tempdiff), _stantype='astero')
+        if not args.testing:
+            #Run a stan model on this. Majorlabel = the type of run, Minorlabel contains the temperature scale difference
+            run = run_stan(dat, init,
+                            _majorlabel=band+'_tempscale'+corr, _minorlabel=str(tempdiff), _stantype='astero')
+
+        else:
+            print('Testing model...')
+            run = run_stan(dat, init,
+                            _majorlabel='test_build', _minorlabel=str(tempdiff)+'_'+band+'_'+corr, _stantype='astero')
 
         #Verbose = True saves chains, rhats, and median results. Visual=True saves cornerplot and pystan plot
         run(verbose=True, visual=True)

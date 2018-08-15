@@ -7,14 +7,14 @@
 #[4]: band [J, H, K, GAIA]
 #[5]: tempdiff
 
-#Tempdiff in K, no correction
-for i in {-50..50..10}; do
-     python bash_stan.py 'astero' 5000 'None' 'K' $i
-done
+# #Tempdiff in K, no correction
+# for i in {-50..50..10}; do
+#      python bash_stan.py 'astero' 5000 'None' 'K' $i
+# done
 
 #Temp diff in K, with correction
 for i in {-50..50..10}; do
-     python bash_stan.py 'astero' 5000 'RC' 'K' $i
+     python bash_stan.py 'astero' 5000 'RC' 'K' $i -t
 done
 
 # #Tempdiff in GAIA, no correction
