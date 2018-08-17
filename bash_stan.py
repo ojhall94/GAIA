@@ -24,8 +24,8 @@ parser.add_argument('iters', type=int, help='Number of MCMC iterations in PyStan
 parser.add_argument('corrections', type=str, choices=['None', 'RC'], help='Choice of corrections to the seismic scaling relations.')
 parser.add_argument('band', type=str, choices=['K','J','H','GAIA'], help='Choice of photometric passband.')
 parser.add_argument('tempdiff', type=float, help='Perturbation to the temperature values in K')
-parser.add_argument('--testing', '-t', action='store_const', const=True, default=False, help='Turn on to output results to a test_build folder')
-parser.add_argument('--update', '-u', action='store_const', const=True, default=False, help='Turn on to update the PyStan model you choose to run')
+parser.add_argument('-t', '--testing', action='store_const', const=True, default=False, help='Turn on to output results to a test_build folder')
+parser.add_argument('-u','--update', action='store_const', const=True, default=False, help='Turn on to update the PyStan model you choose to run')
 args = parser.parse_args()
 
 sys.path.append(os.path.expanduser('~')+'/PhD/Hacks_and_Mocks/asfgrid/')
@@ -376,6 +376,25 @@ def get_fdnu(df):
 
     return fdnu
 
+def get_covmatrix(ccd):
+    #Calculate the sigma for this sample
+    Draij = np.zeros((len(ccd), len(ccd)))
+    Ddij = np.zeros_like(Draij)
+
+    #There is probably a much faster way to do this... but right now I can't think of one
+    print('Finding separations, creating cov matrix...')
+    for i in range(len(ccd)):
+        for j in range(len(ccd)):
+            Draij[i, j] = ccd.ra[j] - ccd.ra[i]
+            Ddij[i, j] = ccd.dec[j] - ccd.dec[j]
+
+    thetaij = np.sqrt(Draij**2 + Ddij**2)
+    Sigmaij = 285*10**-6 * np.exp(-thetaij / 14)
+    np.fill_diagonal(Sigmaij, np.diag(Sigmaij) + ccd.parallax_error**2)
+    print('Done.')
+
+    return Sigmaij
+
 if __name__ == "__main__":
     if args.update:
         update_stan(model='gaia')
@@ -389,7 +408,10 @@ if __name__ == "__main__":
     elif corrections=='RC':
         corr = '_Clump'
 
-    df = read_data()[:100] #Call in the Yu+18 data
+    if not args.testing:
+        df = read_data() #Call in the Yu+18 data
+    else:
+        df = read_data()[:100]
 
     if type == 'astero':
         #Use asfgrid to calculate the correction to the scaling relations
@@ -425,39 +447,60 @@ if __name__ == "__main__":
         run(verbose=True, visual=True)
 
 
-    if type == 'gaia':
-        '''NOTE: NEED TO GENERALISE FOR OTHER THAN K'''
-        if band == 'K':
-            rlebv = 'Aks'
-        elif band == 'GAIA':
-            rlebv = 'Ag'
-        majorlabel = band+'_tempscale'+corr
-        minorlabel = str(tempdiff)
+    '''PLACEHOLDERS BELOW'''
+    df = read_data()
+    # from sklearn.utils import shuffle
 
-        astres = read_paramdict(majorlabel, minorlabel, 'astero')
+    for ccdno in np.unique(df.ccd.values):
+        if not args.testing:
+            print('Placeholder')
+        else:
+            # ccd = shuffle(df[df.ccd == ccdno])[:50].reset_index()     #Calling a single ccd
+            ccd = df[df.ccd == ccdno].reset_index()
+            print('CCD '+str(ccdno)+': '+str(len(ccd)))
+        if type == 'gaia':
+            if band == 'K':
+                rlebv = 'Aks'
+            elif band == 'J':
+                rlebv = 'Aj'
+            elif band == 'H':
+                rlebv = 'Ah'
+            elif band == 'GAIA':
+                rlebv = 'Ag'
 
-        dat = {'N':len(df),
-                'm': df[band+'mag'].values,
-                'm_err': df['e_'+band+'mag'].values,
-                'oo': df.parallax.values,
-                'oo_err': df.parallax_error.values,
-                'RlEbv': df[rlebv].values,
-                'mu_init': astres.mu.values[0],
-                'mu_spread': astres.mu_std.values[0]}
-                # 'sigma_init': astres.sigma.values[0],
-                # 'sigma_spread': astres.sigma_std.values[0]}
+            majorlabel = band+'_tempscale'+corr
+            minorlabel = str(tempdiff)
 
-        init= {'mu': astres.mu.values[0],
-                'sigma': astres.sigma.values[0],
-                'Q': astres.Q.values[0],
-                'sigo': astres.sigo.values[0],
-                'L': 1000.,
-                'oo_zp':-30.}
+            astres = read_paramdict(majorlabel, minorlabel, 'astero')
 
-        print(init)
-        # #Run a stan model on this. Majorlabel = the type of run, Minorlabel contains the temperature scale difference
-        run = run_stan(dat, _init= init,
-                        _majorlabel=majorlabel, _minorlabel=str(tempdiff), _stantype='gaia')
+            Sigma = get_covmatrix(ccd)
 
-        #Verbose = True saves chains, rhats, and median results. Visual=True saves cornerplot and pystan plot
-        run(verbose=True, visual=True)
+            dat = {'N':len(ccd),
+                    'm': ccd[band+'mag'].values,
+                    'm_err': ccd['e_'+band+'mag'].values,
+                    'oo': ccd.parallax.values,
+                    'Sigma': Sigma,         #Covariance matrix per Lindegren+18, Zinn+18
+                    # 'oo_err': ccd.parallax_error.values,
+                    'RlEbv': ccd[rlebv].values,
+                    'mu_init': astres.mu.values[0],
+                    'mu_spread': astres.mu_std.values[0]}
+
+            init= {'mu': astres.mu.values[0],
+                    'sigma': astres.sigma.values[0],
+                    'Q': astres.Q.values[0],
+                    'sigo': astres.sigo.values[0],
+                    'L': 1000.,
+                    'oo_zp':-29.}
+
+            if not args.testing:
+                # #Run a stan model on this. Majorlabel = the type of run, Minorlabel contains the temperature scale difference
+                run = run_stan(dat, _init= init,
+                                _majorlabel=majorlabel, _minorlabel=str(tempdiff), _stantype='gaia')
+
+            else:
+                print('Testing model...')
+                run = run_stan(dat, init,
+                                _majorlabel='test_build', _minorlabel=str(tempdiff)+'_'+band+corr+'_ccd_'+str(ccdno), _stantype='gaia')
+
+            #Verbose = True saves chains, rhats, and median results. Visual=True saves cornerplot and pystan plot
+            run(verbose=True, visual=True)

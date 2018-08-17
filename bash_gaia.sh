@@ -1,11 +1,21 @@
 #!/bin/bash
 
-#Arguments are:
-#[0]: Type [gaia, astero]
-#[1]: Iterations
-#[2]: corrections [None, RC]
-#[3]: band [J, H, K, GAIA]
-#[4]: tempdiff
+'''
+Run our PyStan model on some data
+
+
+positional arguments:
+  {astero,gaia}  Choice of PyStan model.
+  iters          Number of MCMC iterations in PyStan.
+  {None,RC}      Choice of corrections to the seismic scaling relations.
+  {K,J,H,GAIA}   Choice of photometric passband.
+  tempdiff       Perturbation to the temperature values in K
+
+optional arguments:
+  -h, --help     show this help message and exit
+  --testing, -t  Turn on to output results to a test_build folder
+  --update, -u   Turn on to update the PyStan model you choose to run
+'''
 
 #Tempdiff in K, no correction
 for i in {-50..50..10}; do
