@@ -31,8 +31,6 @@ args = parser.parse_args()
 sys.path.append(os.path.expanduser('~')+'/PhD/Hacks_and_Mocks/asfgrid/')
 import asfgrid
 
-from main import read_paramdict
-
 from omnitool.literature_values import Av_coeffs, hawkvals
 from omnitool import scalings
 from omnitool.literature_values import Rsol
