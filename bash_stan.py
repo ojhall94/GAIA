@@ -409,7 +409,7 @@ if __name__ == "__main__":
     if not args.testing:
         df = read_data() #Call in the Yu+18 data
     else:
-        df = read_data()[:100]
+        df = read_data()[:2000]
 
     if type == 'astero':
         #Use asfgrid to calculate the correction to the scaling relations
@@ -423,7 +423,7 @@ if __name__ == "__main__":
                         _numax_err = df.numax_err, _dnu_err = df.dnu_err, _Teff_err = df.Teff_err)
         SC.give_corrections(fdnu = fdnu)
         Mobs = SC.get_bolmag() - df['BC_'+band]
-        Munc = np.sqrt(SC.get_bolmag_err()**2 + 0.02**2) #We assume an error of 0.02 on the bolometric correction
+        Munc = np.sqrt(SC.get_bolmag_err()**2 + (df['BC_'+band]*0.04)**2) #We assume an error of 4% on the bolometric correction
 
         #Set up the data
         dat = {'N':len(df), 'Mobs':Mobs, 'Munc':Munc, 'muH':hawkvals[band]}
@@ -449,56 +449,57 @@ if __name__ == "__main__":
     df = read_data()
     # from sklearn.utils import shuffle
 
-    for ccdno in np.unique(df.ccd.values):
-        if not args.testing:
-            print('Placeholder')
-        else:
-            # ccd = shuffle(df[df.ccd == ccdno])[:50].reset_index()     #Calling a single ccd
-            ccd = df[df.ccd == ccdno].reset_index()
-            print('CCD '+str(ccdno)+': '+str(len(ccd)))
-        if type == 'gaia':
-            if band == 'K':
-                rlebv = 'Aks'
-            elif band == 'J':
-                rlebv = 'Aj'
-            elif band == 'H':
-                rlebv = 'Ah'
-            elif band == 'GAIA':
-                rlebv = 'Ag'
-
-            majorlabel = band+'_tempscale'+corr
-            minorlabel = str(tempdiff)
-
-            astres = read_paramdict(majorlabel, minorlabel, 'astero')
-
-            Sigma = get_covmatrix(ccd)
-
-            dat = {'N':len(ccd),
-                    'm': ccd[band+'mag'].values,
-                    'm_err': ccd['e_'+band+'mag'].values,
-                    'oo': ccd.parallax.values,
-                    'Sigma': Sigma,         #Covariance matrix per Lindegren+18, Zinn+18
-                    # 'oo_err': ccd.parallax_error.values,
-                    'RlEbv': ccd[rlebv].values,
-                    'mu_init': astres.mu.values[0],
-                    'mu_spread': astres.mu_std.values[0]}
-
-            init= {'mu': astres.mu.values[0],
-                    'sigma': astres.sigma.values[0],
-                    'Q': astres.Q.values[0],
-                    'sigo': astres.sigo.values[0],
-                    'L': 1000.,
-                    'oo_zp':-29.}
-
+    if type == 'gaia':
+        for ccdno in np.unique(df.ccd.values):
             if not args.testing:
-                # #Run a stan model on this. Majorlabel = the type of run, Minorlabel contains the temperature scale difference
-                run = run_stan(dat, _init= init,
-                                _majorlabel=majorlabel, _minorlabel=str(tempdiff), _stantype='gaia')
-
+                print('Placeholder')
             else:
-                print('Testing model...')
-                run = run_stan(dat, init,
-                                _majorlabel='test_build', _minorlabel=str(tempdiff)+'_'+band+corr+'_ccd_'+str(ccdno), _stantype='gaia')
+                # ccd = shuffle(df[df.ccd == ccdno])[:50].reset_index()     #Calling a single ccd
+                ccd = df[df.ccd == ccdno].reset_index()
+                print('CCD '+str(ccdno)+': '+str(len(ccd)))
+            if type == 'gaia':
+                if band == 'K':
+                    rlebv = 'Aks'
+                elif band == 'J':
+                    rlebv = 'Aj'
+                elif band == 'H':
+                    rlebv = 'Ah'
+                elif band == 'GAIA':
+                    rlebv = 'Ag'
 
-            #Verbose = True saves chains, rhats, and median results. Visual=True saves cornerplot and pystan plot
-            run(verbose=True, visual=True)
+                majorlabel = band+'_tempscale'+corr
+                minorlabel = str(tempdiff)
+
+                astres = read_paramdict(majorlabel, minorlabel, 'astero')
+
+                Sigma = get_covmatrix(ccd)
+
+                dat = {'N':len(ccd),
+                        'm': ccd[band+'mag'].values,
+                        'm_err': ccd['e_'+band+'mag'].values,
+                        'oo': ccd.parallax.values,
+                        'Sigma': Sigma,         #Covariance matrix per Lindegren+18, Zinn+18
+                        # 'oo_err': ccd.parallax_error.values,
+                        'RlEbv': ccd[rlebv].values,
+                        'mu_init': astres.mu.values[0],
+                        'mu_spread': astres.mu_std.values[0]}
+
+                init= {'mu': astres.mu.values[0],
+                        'sigma': astres.sigma.values[0],
+                        'Q': astres.Q.values[0],
+                        'sigo': astres.sigo.values[0],
+                        'L': 1000.,
+                        'oo_zp':-29.}
+
+                if not args.testing:
+                    # #Run a stan model on this. Majorlabel = the type of run, Minorlabel contains the temperature scale difference
+                    run = run_stan(dat, _init= init,
+                                    _majorlabel=majorlabel, _minorlabel=str(tempdiff), _stantype='gaia')
+
+                else:
+                    print('Testing model...')
+                    run = run_stan(dat, init,
+                                    _majorlabel='test_build', _minorlabel=str(tempdiff)+'_'+band+corr+'_ccd_'+str(ccdno), _stantype='gaia')
+
+                #Verbose = True saves chains, rhats, and median results. Visual=True saves cornerplot and pystan plot
+                run(verbose=True, visual=True)
