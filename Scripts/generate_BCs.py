@@ -30,15 +30,15 @@ if __name__ == '__main__':
 
         out = out[['KICID','logg','[Fe/H]','Teff','Ebv']]
 
-        out.to_csv(__bccodes__+'input.sample.all')
+        out.to_csv(__bccodes__+'input.sample.all',  sep='\t', header=False, index=False,)
         print('Data loaded for Temperature perturbation of: '+str(args.tempdiff))
 
     if args.stage == 'unload':
         bcall = pd.read_csv(__bccodes__+'output.file.all', sep='\s+')
         bcall.rename(columns={'ID':'KICID',
-                            'BC_1':'BC_K',
-                            'BC_2':'BC_GAIA',
-                            'BC_3':'BC_J',
-                            'BC_4':'BC_H'}, inplace=True)
+                            'BC_1':'BC_J',
+                            'BC_2':'BC_H',
+                            'BC_3':'BC_K',
+                            'BC_4':'BC_GAIA'}, inplace=True)
         bcall.drop(columns=['log(g)','[Fe/H]','Teff','E(B-V)','BC_5'], inplace=True)
         bcall.to_csv(__datadir__+'BCs/casagrande_bcs_'+str(args.tempdiff)+'.csv',index=False)

@@ -409,7 +409,7 @@ if __name__ == "__main__":
     if not args.testing:
         df = read_data() #Call in the Yu+18 data
     else:
-        df = read_data()[:2000]
+        df = read_data()
 
     if type == 'astero':
         #Use asfgrid to calculate the correction to the scaling relations
@@ -418,10 +418,13 @@ if __name__ == "__main__":
         if corrections == 'RC':
             fdnu = get_fdnu(df)
 
-        #Use omnitool to calculate G-band magnitude magnitude, using a given radius
+        #Use omnitool to calculate magnitude, using precalculated bolometric corrections 
         SC = scalings(df.numax, df.dnu, df.Teff + tempdiff,
                         _numax_err = df.numax_err, _dnu_err = df.dnu_err, _Teff_err = df.Teff_err)
         SC.give_corrections(fdnu = fdnu)
+        BCs = pd.read_csv(__datdir__+'BCs/casagrande_bcs_'+str(tempdiff)+'.csv')
+        df = pd.merge(df, BCs, how='left', on='KICID')
+
         Mobs = SC.get_bolmag() - df['BC_'+band]
         Munc = np.sqrt(SC.get_bolmag_err()**2 + (df['BC_'+band]*0.04)**2) #We assume an error of 4% on the bolometric correction
 
