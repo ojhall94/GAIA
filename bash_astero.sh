@@ -1,21 +1,18 @@
 #!/bin/bash
 
-'''
-Run our PyStan model on some data
-
-
-positional arguments:
-  {astero,gaia}  Choice of PyStan model.
-  iters          Number of MCMC iterations in PyStan.
-  {None,RC}      Choice of corrections to the seismic scaling relations.
-  {K,J,H,GAIA}   Choice of photometric passband.
-  tempdiff       Perturbation to the temperature values in K
-
-optional arguments:
-  -h, --help     show this help message and exit
-  --testing, -t  Turn on to output results to a test_build folder
-  --update, -u   Turn on to update the PyStan model you choose to run
-'''
+# Run our PyStan model on some data
+#
+# positional arguments:
+#   {astero,gaia}  Choice of PyStan model.
+#   iters          Number of MCMC iterations in PyStan.
+#   {None,RC}      Choice of corrections to the seismic scaling relations.
+#   {K,J,H,GAIA}   Choice of photometric passband.
+#   tempdiff       Perturbation to the temperature values in K
+#
+# optional arguments:
+#   -h, --help     show this help message and exit
+#   --testing, -t  Turn on to output results to a test_build folder
+#   --update, -u   Turn on to update the PyStan model you choose to run
 
 #Tempdiff in K, no correction
 for i in {-50..50..10}; do
@@ -27,15 +24,15 @@ for i in {-50..50..10}; do
      python bash_stan.py 'astero' 5000 'RC' 'K' $i -t
 done
 
-# #Tempdiff in GAIA, no correction
-# for i in {-50..50..10}; do
-#      python bash_stan.py 'astero' 5000 'None' 'GAIA' $i
-# done
-# #
-# #Temp diff in GAIA, with correction
-# for i in {-50..50..10}; do
-#      python bash_stan.py 'astero' 5000 'RC' 'GAIA' $i
-# done
+#Tempdiff in GAIA, no correction
+for i in {-50..50..10}; do
+     python bash_stan.py 'astero' 5000 'None' 'GAIA' $i -t
+done
+#
+#Temp diff in GAIA, with correction
+for i in {-50..50..10}; do
+     python bash_stan.py 'astero' 5000 'RC' 'GAIA' $i -t
+done
 
 # #Tempdiff in J, no correction
 # for i in {-50..50..10}; do

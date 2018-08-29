@@ -364,7 +364,7 @@ def get_fdnu(df):
     asf = asfgrid.Seism()
     evstate = np.ones(len(df))*2
     logz = np.log10(df.Z.values)
-    teff = df.Teff.values + tempdiff
+    teff = df.Teff.values + args.tempdiff
     dnu = df.dnu.values
     numax = df.numax.values
 
@@ -409,7 +409,8 @@ if __name__ == "__main__":
     if not args.testing:
         df = read_data() #Call in the Yu+18 data
     else:
-        df = read_data()
+        from sklearn.utils import shuffle
+        df = shuffle(read_data())[:1000].reset_index()
 
     if type == 'astero':
         #Use asfgrid to calculate the correction to the scaling relations
@@ -418,15 +419,17 @@ if __name__ == "__main__":
         if corrections == 'RC':
             fdnu = get_fdnu(df)
 
-        #Use omnitool to calculate magnitude, using precalculated bolometric corrections 
+        #Use omnitool to calculate magnitude, using precalculated bolometric corrections
         SC = scalings(df.numax, df.dnu, df.Teff + tempdiff,
                         _numax_err = df.numax_err, _dnu_err = df.dnu_err, _Teff_err = df.Teff_err)
         SC.give_corrections(fdnu = fdnu)
-        BCs = pd.read_csv(__datdir__+'BCs/casagrande_bcs_'+str(tempdiff)+'.csv')
+        # BCs = pd.read_csv(__datdir__+'BCs/casagrande_bcs_'+str(tempdiff)+'.csv')
+        BCs = pd.read_csv(__datdir__+'BCs/casagrande_bcs_0.0_singular.csv')
         df = pd.merge(df, BCs, how='left', on='KICID')
 
+        bcerr = 0.02 # We assume an error of 0.02mag on the bolometric correction (roughly 1 to 2 %)
         Mobs = SC.get_bolmag() - df['BC_'+band]
-        Munc = np.sqrt(SC.get_bolmag_err()**2 + (df['BC_'+band]*0.04)**2) #We assume an error of 4% on the bolometric correction
+        Munc = np.sqrt(SC.get_bolmag_err()**2 + bcerr**2)
 
         #Set up the data
         dat = {'N':len(df), 'Mobs':Mobs, 'Munc':Munc, 'muH':hawkvals[band]}
@@ -442,14 +445,14 @@ if __name__ == "__main__":
         else:
             print('Testing model...')
             run = run_stan(dat, init,
-                            _majorlabel='test_build', _minorlabel=str(tempdiff)+'_'+band+'_'+corr, _stantype='astero')
+                            _majorlabel='test_build', _minorlabel=str(tempdiff)+'_'+band+corr, _stantype='astero')
 
         #Verbose = True saves chains, rhats, and median results. Visual=True saves cornerplot and pystan plot
         run(verbose=True, visual=True)
 
 
     '''PLACEHOLDERS BELOW'''
-    df = read_data()
+    # df = read_data()
     # from sklearn.utils import shuffle
 
     if type == 'gaia':

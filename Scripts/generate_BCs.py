@@ -49,4 +49,4 @@ if __name__ == '__main__':
                             'BC_3':'BC_K',
                             'BC_4':'BC_GAIA'}, inplace=True)
         bcall.drop(columns=['log(g)','[Fe/H]','Teff','E(B-V)','BC_5'], inplace=True)
-        bcall.to_csv(__datadir__+'BCs/casagrande_bcs_'+str(args.tempdiff)+'.csv',index=False)
+        bcall.to_csv(__datadir__+'BCs/casagrande_bcs_'+str(args.tempdiff)+'_singular.csv',index=False)

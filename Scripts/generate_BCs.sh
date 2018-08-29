@@ -15,7 +15,7 @@
 
 #Generate iteratively for a range of temperature offsets
 for i in {-50..50..10}; do
-    python generate_BCs.py $i 'load' -pl
+    python generate_BCs.py $i 'load'
     cd ~/PhD/Hacks_and_Mocks/bolometric-corrections/BCcodes/
     ./bcall
     cd ~/PhD/Gaia_Project/GAIA/Scripts/
