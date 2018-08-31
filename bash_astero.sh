@@ -8,35 +8,82 @@
 #   {None,RC}      Choice of corrections to the seismic scaling relations.
 #   {K,J,H,GAIA}   Choice of photometric passband.
 #   tempdiff       Perturbation to the temperature values in K
+#   bclabel        Temp arg: nn: no prop; lt prop logg and teff; nt prop t only.
+
 #
 # optional arguments:
 #   -h, --help     show this help message and exit
 #   --testing, -t  Turn on to output results to a test_build folder
 #   --update, -u   Turn on to update the PyStan model you choose to run
 
+#######################################NO PROPAGATION
 #Tempdiff in K, no correction
 for i in {-50..50..10}; do
-     python bash_stan.py 'astero' 5000 'None' 'K' $i -t
+     python bash_stan.py 'astero' 10000 'None' 'K' $i 'nn'
 done
 
 #Temp diff in K, with correction
 for i in {-50..50..10}; do
-     python bash_stan.py 'astero' 5000 'RC' 'K' $i -t
+     python bash_stan.py 'astero' 10000 'RC' 'K' $i 'nn'
 done
 
 #Tempdiff in GAIA, no correction
 for i in {-50..50..10}; do
-     python bash_stan.py 'astero' 5000 'None' 'GAIA' $i -t
+     python bash_stan.py 'astero' 10000 'None' 'GAIA' $i 'nn'
 done
 #
 #Temp diff in GAIA, with correction
 for i in {-50..50..10}; do
-     python bash_stan.py 'astero' 5000 'RC' 'GAIA' $i -t
+     python bash_stan.py 'astero' 10000 'RC' 'GAIA' $i 'nn'
 done
+
+##################################PROPAGATE TEFF AND LOGG
+
+#Tempdiff in K, no correction
+for i in {-50..50..10}; do
+     python bash_stan.py 'astero' 10000 'None' 'K' $i 'lt'
+done
+
+#Temp diff in K, with correction
+for i in {-50..50..10}; do
+     python bash_stan.py 'astero' 10000 'RC' 'K' $i 'lt'
+done
+
+#Tempdiff in GAIA, no correction
+for i in {-50..50..10}; do
+     python bash_stan.py 'astero' 10000 'None' 'GAIA' $i 'lt'
+done
+#
+#Temp diff in GAIA, with correction
+for i in {-50..50..10}; do
+     python bash_stan.py 'astero' 10000 'RC' 'GAIA' $i 'lt'
+done
+
+#############################################PROPAGATE TEFF ONLY
+#Tempdiff in K, no correction
+for i in {-50..50..10}; do
+     python bash_stan.py 'astero' 10000 'None' 'K' $i 'nt'
+done
+
+#Temp diff in K, with correction
+for i in {-50..50..10}; do
+     python bash_stan.py 'astero' 10000 'RC' 'K' $i 'nt'
+done
+
+#Tempdiff in GAIA, no correction
+for i in {-50..50..10}; do
+     python bash_stan.py 'astero' 10000 'None' 'GAIA' $i 'nt'
+done
+#
+#Temp diff in GAIA, with correction
+for i in {-50..50..10}; do
+     python bash_stan.py 'astero' 10000 'RC' 'GAIA' $i 'nt'
+done
+
 
 # #Tempdiff in J, no correction
 # for i in {-50..50..10}; do
-#      python bash_stan.py 10000 'None' 'J' $i
+#      python bash_stan.py 1000 'None' 'J' $i
 # done
 #
 # #Temp diff in J, with correction

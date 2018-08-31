@@ -24,6 +24,7 @@ parser.add_argument('iters', type=int, help='Number of MCMC iterations in PyStan
 parser.add_argument('corrections', type=str, choices=['None', 'RC'], help='Choice of corrections to the seismic scaling relations.')
 parser.add_argument('band', type=str, choices=['K','J','H','GAIA'], help='Choice of photometric passband.')
 parser.add_argument('tempdiff', type=float, help='Perturbation to the temperature values in K')
+parser.add_argument('bclabel', type=str, choices=['nn','lt','nt'], help='Temp arg: nn: no prop; lt prop logg and teff; nt prop t only.')
 parser.add_argument('-t', '--testing', action='store_const', const=True, default=False, help='Turn on to output results to a test_build folder')
 parser.add_argument('-u','--update', action='store_const', const=True, default=False, help='Turn on to update the PyStan model you choose to run')
 args = parser.parse_args()
@@ -393,6 +394,16 @@ def get_covmatrix(ccd):
 
     return Sigmaij
 
+def get_bcs(tempdiff):
+    if args.bclabel == 'nn':
+        BCs = pd.read_csv(__datdir__+'BCs/casagrande_bcs_0.0_singular.csv')
+    elif args.bclabel == 'nt':
+        BCs = pd.read_csv(__datdir__+'BCs/casagrande_bcs_'+str(tempdiff)+'.csv')
+    elif args.bclabel == 'lt':
+        BCs = pd.read_csv(__datdir__+'BCs/Logg_perturbed/casagrande_bcs_'+str(tempdiff)+'.csv')
+
+    return BCs
+
 if __name__ == "__main__":
     if args.update:
         update_stan(model='gaia')
@@ -407,7 +418,7 @@ if __name__ == "__main__":
         corr = '_Clump'
 
     if not args.testing:
-        df = read_data() #Call in the Yu+18 data
+        df = read_data()[:10] #Call in the Yu+18 data
     else:
         from sklearn.utils import shuffle
         df = shuffle(read_data())[:1000].reset_index()
@@ -423,8 +434,8 @@ if __name__ == "__main__":
         SC = scalings(df.numax, df.dnu, df.Teff + tempdiff,
                         _numax_err = df.numax_err, _dnu_err = df.dnu_err, _Teff_err = df.Teff_err)
         SC.give_corrections(fdnu = fdnu)
-        # BCs = pd.read_csv(__datdir__+'BCs/casagrande_bcs_'+str(tempdiff)+'.csv')
-        BCs = pd.read_csv(__datdir__+'BCs/casagrande_bcs_0.0_singular.csv')
+
+        BCs = get_bcs(tempdiff)
         df = pd.merge(df, BCs, how='left', on='KICID')
 
         bcerr = 0.02 # We assume an error of 0.02mag on the bolometric correction (roughly 1 to 2 %)
@@ -440,7 +451,7 @@ if __name__ == "__main__":
         if not args.testing:
             #Run a stan model on this. Majorlabel = the type of run, Minorlabel contains the temperature scale difference
             run = run_stan(dat, init,
-                            _majorlabel=band+'_tempscale'+corr, _minorlabel=str(tempdiff), _stantype='astero')
+                            _majorlabel=args.bclabel+'_'+band+'_tempscale'+corr, _minorlabel=str(tempdiff), _stantype='astero')
 
         else:
             print('Testing model...')
