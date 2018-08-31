@@ -418,7 +418,7 @@ if __name__ == "__main__":
         corr = '_Clump'
 
     if not args.testing:
-        df = read_data()[:10] #Call in the Yu+18 data
+        df = read_data() #Call in the Yu+18 data
     else:
         from sklearn.utils import shuffle
         df = shuffle(read_data())[:1000].reset_index()
