@@ -12,6 +12,8 @@
 #                        scaling relations for the perturbed Teff
 #   -r, --reddening      If true, include reddening in the interpolation.
 #                        WARNING: This is *not* required for the Hall+18 work.
+#  -f, --flower          If true, return a set of BCs calculated using the method
+#                        by Flower 1993, as presented in Torres 2010
 
 #Generate iteratively for a range of temperature offsets
 for i in {-50..50..10}; do

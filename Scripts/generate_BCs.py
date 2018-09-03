@@ -14,10 +14,37 @@ parser.add_argument('-pl', '--perturb_logg', action='store_const', const=True, d
                     help='If true, perturb our value of logg using seismic scaling relations for the perturbed Teff')
 parser.add_argument('-r', '--reddening', action='store_const', const=True, default=False,
                     help='If true, include reddening in the interpolation. WARNING: This is *not* required for the Hall+18 work.')
+parser.add_argument('-f', '--flower', action='store_const', const=True, default=False,
+                    help='If true, return a set of BCs calculated using the method by Flower 1996, as presented in Torres 2010')                    #  -f, --flower
 args = parser.parse_args()
 
 __datadir__ = os.path.expanduser('~')+'/PhD/Gaia_Project/data/KepxDR2/'
 __bccodes__ = os.path.expanduser('~')+'/PhD/Hacks_and_Mocks/bolometric-corrections/BCcodes/'
+
+def get_flower(teff):
+     lteff = np.log10(teff)
+     BCv = np.full(len(lteff), np.nan)
+
+     BCv[lteff<3.70] = (-0.190537291496456*10.0**5) + \
+     (0.155144866764412*10.0**5*lteff[lteff<3.70]) + \
+     (-0.421278819301717*10.0**4.0*lteff[lteff<3.70]**2.0) + \
+     (0.381476328422343*10.0**3*lteff[lteff<3.70]**3.0)
+
+     BCv[(3.70<lteff) & (lteff<3.90)] = (-0.370510203809015*10.0**5) + \
+     (0.385672629965804*10.0**5*lteff[(3.70<lteff) & (lteff<3.90)]) + \
+     (-0.150651486316025*10.0**5*lteff[(3.70<lteff) & (lteff<3.90)]**2.0) + \
+     (0.261724637119416*10.0**4*lteff[(3.70<lteff) & (lteff<3.90)]**3.0) + \
+     (-0.170623810323864*10.0**3*lteff[(3.70<lteff) & (lteff<3.90)]**4.0)
+
+     BCv[lteff>3.90] = (-0.118115450538963*10.0**6) + \
+     (0.137145973583929*10.0**6*lteff[lteff > 3.90]) + \
+     (-0.636233812100225*10.0**5*lteff[lteff > 3.90]**2.0) + \
+     (0.147412923562646*10.0**5*lteff[lteff > 3.90]**3.0) + \
+     (-0.170587278406872*10.0**4*lteff[lteff > 3.90]**4.0) + \
+     (0.788731721804990*10.0**2*lteff[lteff > 3.90]**5.0)
+
+     return BCv
+
 
 if __name__ == '__main__':
     if args.stage == 'load':

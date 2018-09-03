@@ -266,11 +266,11 @@ class run_stan:
 
         if self.init != 0.:
             fit = sm.sampling(data = self.dat,
-                        iter= __iter__, chains=2,
-                        init = [self.init, self.init])
+                        iter= __iter__, chains=4,
+                        init = [self.init, self.init, self.init, self.init])
         else:
             fit = sm.sampling(data = self.dat,
-                        iter= __iter__, chains=2)
+                        iter= __iter__, chains=4)
 
         return fit
 
@@ -406,7 +406,7 @@ def get_bcs(tempdiff):
 
 if __name__ == "__main__":
     if args.update:
-        update_stan(model='gaia')
+        update_stan(model='both')
 
     type = args.type
     corrections = args.corrections
@@ -458,7 +458,7 @@ if __name__ == "__main__":
             run = run_stan(dat, init,
                             _majorlabel='test_build', _minorlabel=str(tempdiff)+'_'+band+corr, _stantype='astero')
 
-        #Verbose = True saves chains, rhats, and median results. Visual=True saves cornerplot and pystan plot
+        #Verbose = True saves chains, rhats, and median results. Visual=True saves cornerplot
         run(verbose=True, visual=True)
 
 
