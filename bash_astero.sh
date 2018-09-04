@@ -20,22 +20,22 @@
 
 #Tempdiff in K, no correction
 for i in {-50..50..10}; do
-     python bash_stan.py 'astero' 12000 'None' 'K' $i 'lt'
+     python bash_stan.py 'astero' 10000 'None' 'K' $i 'lt'
 done
 
 #Temp diff in K, with correction
 for i in {-50..50..10}; do
-     python bash_stan.py 'astero' 12000 'RC' 'K' $i 'lt'
+     python bash_stan.py 'astero' 10000 'RC' 'K' $i 'lt'
 done
 
 #Tempdiff in GAIA, no correction
 for i in {-50..50..10}; do
-     python bash_stan.py 'astero' 12000 'None' 'GAIA' $i 'lt'
+     python bash_stan.py 'astero' 10000 'None' 'GAIA' $i 'lt'
 done
 #
 #Temp diff in GAIA, with correction
 for i in {-50..50..10}; do
-     python bash_stan.py 'astero' 12000 'RC' 'GAIA' $i 'lt'
+     python bash_stan.py 'astero' 10000 'RC' 'GAIA' $i 'lt'
 done
 
 
