@@ -12,12 +12,12 @@
 #                        scaling relations for the perturbed Teff
 #   -r, --reddening      If true, include reddening in the interpolation.
 #                        WARNING: This is *not* required for the Hall+18 work.
-#  -f, --flower          If true, return a set of BCs calculated using the method
-#                        by Flower 1993, as presented in Torres 2010
+#   -a, --apokasc        If true, return a set of BCs calculated for the APOKASC
+#                        subsample
 
 #Generate iteratively for a range of temperature offsets
 for i in {-50..50..10}; do
-    python generate_BCs.py $i 'load'
+    python generate_BCs.py $i 'load' -pl -a
     cd ~/PhD/Hacks_and_Mocks/bolometric-corrections/BCcodes/
     ./bcall
     cd ~/PhD/Gaia_Project/GAIA/Scripts/

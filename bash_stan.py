@@ -24,9 +24,11 @@ parser.add_argument('iters', type=int, help='Number of MCMC iterations in PyStan
 parser.add_argument('corrections', type=str, choices=['None', 'RC'], help='Choice of corrections to the seismic scaling relations.')
 parser.add_argument('band', type=str, choices=['K','J','H','GAIA'], help='Choice of photometric passband.')
 parser.add_argument('tempdiff', type=float, help='Perturbation to the temperature values in K')
-parser.add_argument('bclabel', type=str, choices=['nn','lt','nt'], help='Temp arg: nn: no prop; lt prop logg and teff; nt prop t only.')
+# parser.add_argument('bclabel', type=str, choices=['nn','lt','nt'], help='Temp arg: nn: no prop; lt prop logg and teff; nt prop t only.')
 parser.add_argument('-t', '--testing', action='store_const', const=True, default=False, help='Turn on to output results to a test_build folder')
 parser.add_argument('-u','--update', action='store_const', const=True, default=False, help='Turn on to update the PyStan model you choose to run')
+parser.add_argument('-a','--apokasc', action='store_const', const=True, default=False, help='Turn on to run on the APOKASC subsample')
+parser.add_argument('-af', '--apofull', action='store_const', const=True, default=False, help='Turn on to propagate full APOKASC data')
 args = parser.parse_args()
 
 sys.path.append(os.path.expanduser('~')+'/PhD/Hacks_and_Mocks/asfgrid/')
@@ -319,7 +321,10 @@ class run_stan:
 
 def read_data():
     '''Reads in the Yu et al. 2018 data'''
-    sfile = __datdir__+'rcxyu18.csv'
+    if args.apokasc:
+        sfile = __datdir__+'rcxyuxapokasc2.csv'
+    else:
+        sfile = __datdir__+'rcxyu18.csv'
     df = pd.read_csv(sfile)
     return df
 
@@ -395,12 +400,16 @@ def get_covmatrix(ccd):
     return Sigmaij
 
 def get_bcs(tempdiff):
-    if args.bclabel == 'nn':
-        BCs = pd.read_csv(__datdir__+'BCs/casagrande_bcs_0.0_singular.csv')
-    elif args.bclabel == 'nt':
-        BCs = pd.read_csv(__datdir__+'BCs/casagrande_bcs_'+str(tempdiff)+'.csv')
-    elif args.bclabel == 'lt':
+    # if args.bclabel == 'nn':
+    #     BCs = pd.read_csv(__datdir__+'BCs/casagrande_bcs_0.0_singular.csv')
+    # elif args.bclabel == 'nt':
+    #     BCs = pd.read_csv(__datdir__+'BCs/Logg_unperturbed/casagrande_bcs_'+str(tempdiff)+'.csv')
+    # elif args.bclabel == 'lt':
+    #     BCs = pd.read_csv(__datdir__+'BCs/Logg_perturbed/casagrande_bcs_'+str(tempdiff)+'.csv')
+    if not args.apokasc:
         BCs = pd.read_csv(__datdir__+'BCs/Logg_perturbed/casagrande_bcs_'+str(tempdiff)+'.csv')
+    elif args.apokasc:
+        BCs = pd.read_csv(__datdir__+'BCs/APOKASC/casagrande_bcs_'+str(tempdiff)+'.csv')
 
     return BCs
 
@@ -418,7 +427,7 @@ if __name__ == "__main__":
         corr = '_Clump'
 
     if not args.testing:
-        df = read_data() #Call in the Yu+18 data
+        df = read_data()
     else:
         from sklearn.utils import shuffle
         df = shuffle(read_data())[:1000].reset_index()
@@ -428,11 +437,23 @@ if __name__ == "__main__":
         if corrections == 'None':
             fdnu = np.ones(len(df))
         if corrections == 'RC':
-            fdnu = get_fdnu(df)
+            if not args.apofull:
+                fdnu = get_fdnu(df)
+            else:
+                fdnu = df.A_fdnu.values
 
         #Use omnitool to calculate magnitude, using precalculated bolometric corrections
-        SC = scalings(df.numax, df.dnu, df.Teff + tempdiff,
+        if not args.apokasc:
+            SC = scalings(df.numax, df.dnu, df.Teff + tempdiff,
                         _numax_err = df.numax_err, _dnu_err = df.dnu_err, _Teff_err = df.Teff_err)
+        if args.apokasc:
+            if not args.apofull:
+                SC = scalings(df.numax, df.dnu, df.A_Teff + tempdiff,
+                            _numax_err = df.numax_err, _dnu_err = df.dnu_err, _Teff_err = df.A_Teff_err)
+            if args.apofull:
+                SC = scalings(df.A_numax, df.A_dnu, df.A_Teff + tempdiff,
+                            _numax_err = df.A_numax_err, _dnu_err = df.A_dnu_err, _Teff_err = df.A_Teff_err)
+
         SC.give_corrections(fdnu = fdnu)
 
         BCs = get_bcs(tempdiff)
@@ -450,9 +471,17 @@ if __name__ == "__main__":
 
         if not args.testing:
             #Run a stan model on this. Majorlabel = the type of run, Minorlabel contains the temperature scale difference
-            run = run_stan(dat, init,
-                            _majorlabel=args.bclabel+'_'+band+'_tempscale'+corr, _minorlabel=str(tempdiff), _stantype='astero')
+            if args.apokasc:
+                if not args.apofull:
+                    run = run_stan(dat, init,
+                                    _majorlabel='APOKASC_'+band+'_tempscale'+corr, _minorlabel=str(tempdiff), _stantype='astero')
+                if args.apofull:
+                    run = run_stan(dat, init,
+                                    _majorlabel='APOFULL_'+band+'_tempscale'+corr, _minorlabel=str(tempdiff), _stantype='astero')
 
+            else:
+                run = run_stan(dat, init,
+                                _majorlabel=band+'_tempscale'+corr, _minorlabel=str(tempdiff), _stantype='astero')
         else:
             print('Testing model...')
             run = run_stan(dat, init,
