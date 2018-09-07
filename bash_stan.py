@@ -321,10 +321,13 @@ class run_stan:
 
 def read_data():
     '''Reads in the Yu et al. 2018 data'''
-    if args.apokasc:
-        sfile = __datdir__+'rcxyuxapokasc2.csv'
-    else:
+    if args.type == 'gaia':
         sfile = __datdir__+'rcxyu18.csv'
+    else:
+        if args.apokasc:
+            sfile = __datdir__+'rcxyuxapokasc2.csv'
+        else:
+            sfile = __datdir__+'rcxyu18.csv'
     df = pd.read_csv(sfile)
     return df
 
@@ -491,61 +494,63 @@ if __name__ == "__main__":
         run(verbose=True, visual=True)
 
 
-    '''PLACEHOLDERS BELOW'''
-    # df = read_data()
-    # from sklearn.utils import shuffle
-
     if type == 'gaia':
         for ccdno in np.unique(df.ccd.values):
-            if not args.testing:
-                print('Placeholder')
-            else:
-                # ccd = shuffle(df[df.ccd == ccdno])[:50].reset_index()     #Calling a single ccd
-                ccd = df[df.ccd == ccdno].reset_index()
-                print('CCD '+str(ccdno)+': '+str(len(ccd)))
-            if type == 'gaia':
+            ccd = df[df.ccd == ccdno].reset_index()
+            print('CCD '+str(ccdno)+': '+str(len(ccd)))
+
+            if band == 'K':
+                rlebv = ccd.Aks.values
+                mband = ccd.Kmag.values
+                merr = ccd.e_Kmag.values
+            elif band == 'GAIA':
+                rlebv = ccd.Ebv.values * 2.740 #As per Casagrande & Vandenberg 2018b
+                #Correct the Gaia G mags as per Casagrande & Vandenberg 2018b
+                mband = np.ones(len(ccd)) * ccd.GAIAmag.values
+                sel = (mband > 6.) & (mband < 16.5)
+                mband[sel] = 0.0505 + 0.9966*mband[sel]
+                merr = ccd.e_GAIAmag.values
+
+            if not args.apokasc:
                 if band == 'K':
-                    rlebv = 'Aks'
-                elif band == 'J':
-                    rlebv = 'Aj'
-                elif band == 'H':
-                    rlebv = 'Ah'
+                    astres = read_paramdict('lt_K_tempscale_Clump', str(tempdiff), 'astero')
                 elif band == 'GAIA':
-                    rlebv = 'Ag'
+                    astres = read_paramdict('pre-4chainruns/lt_GAIA_tempscale_Clump', str(tempdiff), 'astero')
+            elif args.apokasc:
+                astres = read_paramdict('APOKASC_'+band+'_tempscale_Clump', str(tempdiff), 'astero')
 
-                majorlabel = band+'_tempscale'+corr
-                minorlabel = str(tempdiff)
+            Sigma = get_covmatrix(ccd)
 
-                astres = read_paramdict(majorlabel, minorlabel, 'astero')
+            dat = {'N':len(ccd),
+                    'm': mband,
+                    'm_err': merr,
+                    'oo': ccd.parallax.values,
+                    'Sigma': Sigma,         #Covariance matrix per Lindegren+18, Zinn+18
+                    'RlEbv': rlebv,
+                    'mu_init': astres.mu.values[0],
+                    'mu_spread': astres.mu_std.values[0]}
 
-                Sigma = get_covmatrix(ccd)
-
-                dat = {'N':len(ccd),
-                        'm': ccd[band+'mag'].values,
-                        'm_err': ccd['e_'+band+'mag'].values,
-                        'oo': ccd.parallax.values,
-                        'Sigma': Sigma,         #Covariance matrix per Lindegren+18, Zinn+18
-                        # 'oo_err': ccd.parallax_error.values,
-                        'RlEbv': ccd[rlebv].values,
-                        'mu_init': astres.mu.values[0],
-                        'mu_spread': astres.mu_std.values[0]}
-
-                init= {'mu': astres.mu.values[0],
-                        'sigma': astres.sigma.values[0],
-                        'Q': astres.Q.values[0],
-                        'sigo': astres.sigo.values[0],
-                        'L': 1000.,
-                        'oo_zp':-29.}
-
-                if not args.testing:
-                    # #Run a stan model on this. Majorlabel = the type of run, Minorlabel contains the temperature scale difference
-                    run = run_stan(dat, _init= init,
-                                    _majorlabel=majorlabel, _minorlabel=str(tempdiff), _stantype='gaia')
+            init= {'mu': astres.mu.values[0],
+                    'sigma': astres.sigma.values[0],
+                    'Q': astres.Q.values[0],
+                    'sigo': astres.sigo.values[0],
+                    'L': 1000.,
+                    'oo_zp':-29.}
+                    
+            if not args.testing:
+                #Run a stan model on this. Majorlabel = the type of run, Minorlabel contains the temperature scale difference
+                if args.apokasc:
+                    run = run_stan(dat, init,
+                                    _majorlabel='Gaia_APOKASC_'+band+'_tempscale'+corr, _minorlabel=str(tempdiff)+'_ccd_'+str(ccdno), _stantype='gaia')
 
                 else:
-                    print('Testing model...')
                     run = run_stan(dat, init,
-                                    _majorlabel='test_build', _minorlabel=str(tempdiff)+'_'+band+corr+'_ccd_'+str(ccdno), _stantype='gaia')
+                                    _majorlabel='Gaia_'+band+'_tempscale'+corr, _minorlabel=str(tempdiff)+'_ccd_'+str(ccdno), _stantype='gaia')
+            else:
+                print('Testing model...')
+                run = run_stan(dat, init,
+                                _majorlabel='test_build', _minorlabel=str(tempdiff)+'_'+band+corr, _stantype='gaia')
 
-                #Verbose = True saves chains, rhats, and median results. Visual=True saves cornerplot and pystan plot
-                run(verbose=True, visual=True)
+
+
+            run(verbose=True, visual=True)
