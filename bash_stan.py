@@ -514,7 +514,7 @@ if __name__ == "__main__":
                 mband = np.ones(len(ccd)) * ccd.GAIAmag.values
                 sel = (mband > 6.) & (mband < 16.5)
                 mband[sel] = 0.0505 + 0.9966*mband[sel]
-                merr = ccd.e_GAIAmag.values
+                merr = np.ones(len(mband)) * 10.e-3 #Setting precision to 10mmag by default
 
             if not args.apokasc:
                 if band == 'K':
