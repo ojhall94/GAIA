@@ -18,27 +18,32 @@
 
 
 #########################################YU ET AL FULL SAMPLE PROP LOG AND TEFF
+# python bash_stan.py 'gaia' 10000 'None' 'K' 0.0 --update
+
+# #Tempdiff in K [Always RC corrected]
+# for i in {-50..50..50}; do
+#      python bash_stan.py 'gaia' 5000 'RC' 'K' $i
+# done
+# cp astrostan.pkl ../Output
+
+python bash_stan.py 'gaia' 5000 'RC' 'K' 50.0
+cp astrostan.pkl ../Output
+
+#Temp diff in GAIA [Always RC corrected]
+# for i in {-50..50..50}; do
+#      python bash_stan.py 'gaia' 5000 'RC' 'GAIA' $i
+# done
+# cp astrostan.pkl ../Output
+#
+# ########################################APOKASC TEFF ONLY
 #Tempdiff in K [Always RC corrected]
 for i in {-50..50..50}; do
-     python bash_stan.py 'gaia' 10000 'RC' 'K' $i
+     python bash_stan.py 'gaia' 5000 'RC' 'K' $i -a
 done
 cp astrostan.pkl ../Output
-
-#Temp diff in GAIA [Always RC corrected]
-for i in {-50..50..50}; do
-     python bash_stan.py 'gaia' 10000 'RC' 'GAIA' $i
-done
-cp astrostan.pkl ../Output
-
-########################################APOKASC TEFF ONLY
-Tempdiff in K [Always RC corrected]
-for i in {-50..50..50}; do
-     python bash_stan.py 'gaia' 10000 'RC' 'K' $i -a
-done
-cp astrostan.pkl ../Output
-
-#Temp diff in GAIA [Always RC corrected]
-for i in {-50..50..50}; do
-     python bash_stan.py 'gaia' 10000 'RC' 'GAIA' $i -a
-done
-cp astrostan.pkl ../Output
+#
+# #Temp diff in GAIA [Always RC corrected]
+# for i in {-50..50..50}; do
+#      python bash_stan.py 'gaia' 5000 'RC' 'GAIA' $i -a
+# done
+# cp astrostan.pkl ../Output

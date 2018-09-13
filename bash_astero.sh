@@ -18,6 +18,7 @@
 
 
 #########################################YU ET AL FULL SAMPLE PROP LOG AND TEFF
+python bash_stan.py 'astero' 10000 'None' 'K' 0.0 --update
 
 #Tempdiff in K, no correction
 for i in {-50..50..10}; do

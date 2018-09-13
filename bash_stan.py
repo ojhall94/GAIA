@@ -65,6 +65,10 @@ def create_astrostan(overwrite=True):
         real mu_init;
         real mu_spread;
     }
+    transformed data {
+        matrix[N,N] L_sigma;
+        L_sigma = cholesky_decompose(Sigma);
+    }
     parameters {
         //Hyperparameters
         real mu;
@@ -119,7 +123,7 @@ def create_astrostan(overwrite=True):
         }
 
         //Observables [p(D | theta_rc, L, alpha)]
-        oo ~ multi_normal(oo_exp, Sigma); //Measurement uncertainty on parallax
+        oo ~ multi_normal_cholesky(oo_exp, L_sigma); //Measurement uncertainty on parallax
         m ~ normal(m_true, m_err); //Measurement uncertainty on magnitude
     }
 
@@ -141,7 +145,7 @@ def create_asterostan(overwrite=True):
     asterostan = '''
     data {
         int<lower = 0> N;
-        vector[n] Mobs;
+        vector[N] Mobs;
         vector[N] Munc;
         real muH;
     }
@@ -418,7 +422,8 @@ def get_bcs(tempdiff):
 
 if __name__ == "__main__":
     if args.update:
-        update_stan(model='both')
+        update_stan(model=args.type)
+        sys.exit()
 
     type = args.type
     corrections = args.corrections
@@ -536,7 +541,7 @@ if __name__ == "__main__":
                     'sigo': astres.sigo.values[0],
                     'L': 1000.,
                     'oo_zp':-29.}
-                    
+
             if not args.testing:
                 #Run a stan model on this. Majorlabel = the type of run, Minorlabel contains the temperature scale difference
                 if args.apokasc:
