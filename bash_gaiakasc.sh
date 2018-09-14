@@ -20,11 +20,11 @@
 #########################################YU ET AL FULL SAMPLE PROP LOG AND TEFF
 # python bash_stan.py 'gaia' 10000 'None' 'K' 0.0 --update
 
-# #Tempdiff in K [Always RC corrected]
-# for i in {-50..50..50}; do
-#      python bash_stan.py 'gaia' 5000 'RC' 'K' $i
-# done
-# cp astrostan.pkl ../Output
+#Tempdiff in K [Always RC corrected]
+for i in {-50..50..50}; do
+     python bash_stan.py 'gaia' 10 'RC' 'K' $i
+done
+cp astrostan.pkl ../Output
 
 #Temp diff in GAIA [Always RC corrected]
 # for i in {-50..50..50}; do
@@ -40,7 +40,7 @@
 # cp astrostan.pkl ../Output
 # #
 #Temp diff in GAIA [Always RC corrected]
-for i in {-50..50..50}; do
-     python bash_stan.py 'gaia' 5000 'RC' 'GAIA' $i -a
-done
-cp astrostan.pkl ../Output
+# for i in {-50..50..50}; do
+#      python bash_stan.py 'gaia' 5000 'RC' 'GAIA' $i -a
+# done
+# cp astrostan.pkl ../Output
