@@ -518,9 +518,9 @@ if __name__ == "__main__":
 
             if not args.apokasc:
                 if band == 'K':
-                    astres = read_paramdict('lt_K_tempscale_Clump', str(tempdiff), 'astero')
+                    astres = read_paramdict('K_tempscale_Clump', str(tempdiff), 'astero')
                 elif band == 'GAIA':
-                    astres = read_paramdict('pre-4chainruns/lt_GAIA_tempscale_Clump', str(tempdiff), 'astero')
+                    astres = read_paramdict('GAIA_tempscale_Clump', str(tempdiff), 'astero')
             elif args.apokasc:
                 astres = read_paramdict('APOKASC_'+band+'_tempscale_Clump', str(tempdiff), 'astero')
 
