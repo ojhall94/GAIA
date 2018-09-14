@@ -29,6 +29,7 @@ parser.add_argument('-t', '--testing', action='store_const', const=True, default
 parser.add_argument('-u','--update', action='store_const', const=True, default=False, help='Turn on to update the PyStan model you choose to run')
 parser.add_argument('-a','--apokasc', action='store_const', const=True, default=False, help='Turn on to run on the APOKASC subsample')
 parser.add_argument('-af', '--apofull', action='store_const', const=True, default=False, help='Turn on to propagate full APOKASC data')
+parser.add_argument('-v', '--visual', action='store_const', const=True, default=False, help='Turn on to include cornerplots')
 args = parser.parse_args()
 
 sys.path.append(os.path.expanduser('~')+'/PhD/Hacks_and_Mocks/asfgrid/')
@@ -496,7 +497,7 @@ if __name__ == "__main__":
                             _majorlabel='test_build', _minorlabel=str(tempdiff)+'_'+band+corr, _stantype='astero')
 
         #Verbose = True saves chains, rhats, and median results. Visual=True saves cornerplot
-        run(verbose=True, visual=True)
+        run(verbose=True, visual=args.visual)
 
 
     if type == 'gaia':
@@ -558,4 +559,4 @@ if __name__ == "__main__":
 
 
 
-            run(verbose=True, visual=True)
+            run(verbose=True, visual=args.visual)
