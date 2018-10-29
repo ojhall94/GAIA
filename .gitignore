@@ -8,6 +8,7 @@ __pycache__/
 
 #Other
 *.pkl
+sigmaij.txt
 
 # Distribution / packaging
 .Python

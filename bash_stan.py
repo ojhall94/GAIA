@@ -1,4 +1,4 @@
-#!/bin/env python
+#!/bin/env python3
 # -*- coding: utf-8 -*-
 import numpy as np
 import matplotlib.pyplot as plt
@@ -186,14 +186,16 @@ def create_asterostan(overwrite=True):
     if overwrite:
         print('Updating Stan model')
         sm = pystan.StanModel(model_code = asterostan, model_name='astrostan')
-        with open(model_path, 'wb') as f:
-            pickle.dump(sm, f)
+        pkl_file =  open(model_path, 'wb')
+        pickle.dump(sm, pkl_file)
+        pkl_file.close()
 
     if not os.path.isfile(model_path):
         print('Saving Stan Model')
         sm = pystan.StanModel(model_code = asterostan, model_name='astrostan')
-        with open(model_path, 'wb') as f:
-            pickle.dump(sm, f)
+        pkl_file =  open(model_path, 'wb')
+        pickle.dump(sm, pkl_file)
+        pkl_file.close()
 
 def update_stan(model='gaia'):
     if model == 'gaia':
@@ -273,10 +275,10 @@ class run_stan:
 
         if self.init != 0.:
             fit = sm.sampling(data = self.dat,
-                        iter= __iter__, chains=4,
+                        iter= __iter__, chains=4, seed=24601,
                         init = [self.init, self.init, self.init, self.init])
         else:
-            fit = sm.sampling(data = self.dat,
+            fit = sm.sampling(data = self.dat, seed=24601,
                         iter= __iter__, chains=4)
 
         return fit
@@ -298,6 +300,12 @@ class run_stan:
         #Save the chains
         chain = np.array([fit[label] for label in self.pars])
         np.savetxt(self.runlabel+'_chains.txt',chain)
+
+        #Save the full fit extract
+        outlabel = self.runlabel+'_fullchain_dict.pkl'
+        output = open(outlabel, 'wb')
+        pickle.dump(fit.extract(), output)
+        output.close()
 
         #Save the parameters
         pardict = {label:np.median(fit[label]) for label in self.pars}
