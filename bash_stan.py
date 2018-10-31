@@ -14,8 +14,6 @@ import pystan
 import corner
 
 import pickle
-import os
-import sys
 import glob
 import argparse
 parser = argparse.ArgumentParser(description='Run our PyStan model on some data')
@@ -32,6 +30,8 @@ parser.add_argument('-af', '--apofull', action='store_const', const=True, defaul
 parser.add_argument('-v', '--visual', action='store_const', const=True, default=False, help='Turn on to include cornerplots')
 args = parser.parse_args()
 
+import os
+import sys
 sys.path.append(os.path.expanduser('~')+'/PhD/Hacks_and_Mocks/asfgrid/')
 import asfgrid
 
