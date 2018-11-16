@@ -18,27 +18,27 @@
 
 
 #########################################YU ET AL FULL SAMPLE PROP LOG AND TEFF
-python bash_stan.py 'astero' 10000 'None' 'K' 0.0 --update
+# python bash_stan.py 'astero' 10000 'None' 'K' 0.0 --update
 
-#Tempdiff in K, no correction
-for i in {-50..50..10}; do
-     python bash_stan.py 'astero' 5000 'None' 'K' $i
-done
-
-#Temp diff in K, with correction
-for i in {-50..50..10}; do
-     python bash_stan.py 'astero' 5000 'RC' 'K' $i
-done
-
-#Tempdiff in GAIA, no correction
-for i in {-50..50..10}; do
-     python bash_stan.py 'astero' 5000 'None' 'GAIA' $i
-done
-
-# #Temp diff in GAIA, with correction
-for i in {-50..50..10}; do
-     python bash_stan.py 'astero' 5000 'RC' 'GAIA' $i
-done
+# #Tempdiff in K, no correction
+# for i in {-50..50..10}; do
+#      python bash_stan.py 'astero' 5000 'None' 'K' $i
+# done
+#
+# #Temp diff in K, with correction
+# for i in {-50..50..10}; do
+#      python bash_stan.py 'astero' 5000 'RC' 'K' $i
+# done
+#
+# #Tempdiff in GAIA, no correction
+# for i in {-50..50..10}; do
+#      python bash_stan.py 'astero' 5000 'None' 'GAIA' $i
+# done
+#
+# # #Temp diff in GAIA, with correction
+# for i in {-50..50..10}; do
+#      python bash_stan.py 'astero' 5000 'RC' 'GAIA' $i
+# done
 
 ###################################APOKASC TEFF ONLY
 #Tempdiff in K, no correction

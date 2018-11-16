@@ -1,4 +1,4 @@
-#!/bin/env python3
+!/bin/env python3
 # -*- coding: utf-8 -*-
 import numpy as np
 import matplotlib.pyplot as plt
@@ -54,21 +54,27 @@ def create_astrostan(overwrite=True):
         real bailerjones_lpdf(real r, real L){
             return log((1/(2*L^3)) * (r*r) * exp(-r/L));
         }
+        real precalc_multinormal_lpdf(vector oo, vector oo_true, real logdetc, matrix invc, int N, real Nfloat){
+            vector[N] r;
+            r = oo - oo_true;
+
+            return -0.5 * ((r' * invc * r) + logdetc + Nfloat * log(2*pi()));
+        }
     }
     data {
         int<lower = 0> N;
+        real<lower= 0> Nfloat;
         vector[N] m;
         vector<lower=0>[N] m_err;
         vector[N] oo;
-        cov_matrix[N] Sigma;
         vector<lower=0>[N] RlEbv;
+
+        matrix[N, N] invc;
+        real logdetc;
 
         real mu_init;
         real mu_spread;
-    }
-    transformed data {
-        matrix[N,N] L_sigma;
-        L_sigma = cholesky_decompose(Sigma);
+
     }
     parameters {
         //Hyperparameters
@@ -77,14 +83,12 @@ def create_astrostan(overwrite=True):
         real<lower=1.> sigo;
         real<lower=0.5,upper=1.> Q;
         real<lower=.1, upper=4000.> L;
+        real oo_zp;
 
         //Latent parameters
         vector[N] M_infd_std;
         vector[N] Ai;
         vector<lower = 1.>[N] r_infd;
-
-        // Parallax offset
-        real oo_zp;
     }
     transformed parameters{
         //Inferred and transformed parameters
@@ -98,7 +102,7 @@ def create_astrostan(overwrite=True):
     model {
         //Define calculable properties
         vector[N] m_true;
-        vector[N] oo_exp;
+        vector[N] oo_true;
 
         //Hyperparameters [p(theta_rc, L)]
         mu ~ normal(mu_init, mu_spread); // Prior from seismo
@@ -120,11 +124,11 @@ def create_astrostan(overwrite=True):
         //Calculable properties
         for (n in 1:N){
             m_true[n] = M_infd[n] + 5*log10(r_infd[n]) - 5 + Ai[n];
-            oo_exp[n] = (1000./r_infd[n]) + (oo_zp/1000.);
+            oo_true[n] = (1000./r_infd[n]) + (oo_zp/1000.);
         }
 
         //Observables [p(D | theta_rc, L, alpha)]
-        oo ~ multi_normal_cholesky(oo_exp, L_sigma); //Measurement uncertainty on parallax
+        oo ~ precalc_multinormal(oo_true, logdetc, invc, N, Nfloat);
         m ~ normal(m_true, m_err); //Measurement uncertainty on magnitude
     }
 
