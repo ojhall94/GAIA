@@ -74,6 +74,8 @@ def create_astrostan(overwrite=True):
 
         real mu_init;
         real mu_spread;
+        real sig_init;
+        real sig_spread;
 
     }
     parameters {
@@ -106,7 +108,7 @@ def create_astrostan(overwrite=True):
 
         //Hyperparameters [p(theta_rc, L)]
         mu ~ normal(mu_init, mu_spread); // Prior from seismo
-        sigma ~ normal(0., 1.);
+        sigma ~ normal(sig_init, sig_spread);
         Q ~ normal(1., .25);
         sigo ~ normal(3.0, 1.0);
         L ~ uniform(0.1, 4000.);   // Prior on the length scale
@@ -374,6 +376,16 @@ def read_paramdict(majorlabel, minorlabel='', sort='astero'):
 
     return df.sort_values(by=majorlabel)
 
+def read_astero_output(majorlabel, minorlabel, sort):
+    loc = __outdir__+majorlabel+'/'+sort+'_'+str(float(minorlabel))+'_fullchain_dict.pkl'
+    pkl_file = open(loc, 'rb')
+    fit = pickle.load(pkl_file)
+    pkl_file.close()
+
+    M_infd = np.median(fit['Mtrue'],axis=0)
+    M_infd_std = np.median(fit['Mtrue_std'], axis=0)
+    return M_infd, M_infd_std
+
 def get_basic_init(type='gaia'):
     '''Returns a basic series of initial guesses in PyStan format.'''
     init = {'mu':-1.7,
@@ -447,10 +459,17 @@ if __name__ == "__main__":
         corr = '_Clump'
 
     if not args.testing:
-        df = read_data()
+        if type == 'astero':
+            df = read_data()
+        if type == 'gaia':
+            kdf = read_data()
+            from sklearn.utils import shuffle
+            df = shuffle(kdf, random_state=24601)[:50].reset_index()
+            shuffle=True
+
     else:
         from sklearn.utils import shuffle
-        df = shuffle(read_data())[:100].reset_index()
+        df = shuffle(read_data(), random_state=24601)[:100].reset_index()
 
     if type == 'astero':
         #Use asfgrid to calculate the correction to the scaling relations
@@ -526,8 +545,18 @@ if __name__ == "__main__":
 
         if not args.apokasc:
             astres = read_paramdict(band+'_tempscale_Clump', str(tempdiff), 'astero')
+            M_infd, M_infd_std = read_astero_output(band+'_tempscale_Clump', str(tempdiff), 'astero')
         elif args.apokasc:
             astres = read_paramdict('APOKASC_'+band+'_tempscale_Clump', str(tempdiff), 'astero')
+            M_infd, M_infd_std = read_astero_output('APOKASC_'+band+'_tempscale_Clump', str(tempdiff), 'astero')
+
+        #Make sure these values are shuffled in in the right order
+        if shuffle:
+            kdf['M_infd'] = M_infd
+            kdf['M_infd_std'] = M_infd_std
+            shuf_kdf = shuffle(kdf, random_state=24601)[:100].reset_index()
+            M_infd = shuf_kdf['M_infd']
+            M_infd_std = shuf_kdf['M_infd_std']
 
         Sigma, invc, logdetc = get_covmatrix(df)
 
@@ -540,14 +569,21 @@ if __name__ == "__main__":
                 'logdetc': logdetc,
                 'invc': invc,
                 'mu_init': astres['mu'].values[0],
-                'mu_spread': astres['mu_std'].values[0]}
+                'mu_spread': astres['mu_std'].values[0],
+                'sig_init': astres['sigma'].values[0],
+                'sig_spread': astres['sigma_std'].values[0]}}
+
 
         init= {'mu': astres.mu.values[0],
                 'sigma': astres.sigma.values[0],
                 'Q': astres.Q.values[0],
                 'sigo': astres.sigo.values[0],
                 'L': 1000.,
-                'oo_zp':-29.}
+                'oo_zp':-29.,
+                'M_infd':M_infd,
+                'M_infd_std':M_infd_std,
+                'r_infd':df.r_est,
+                'Ai':rlebv}
 
         if not args.testing:
             #Run a stan model on this. Majorlabel = the type of run, Minorlabel contains the temperature scale difference
