@@ -74,6 +74,8 @@ def create_astrostan(overwrite=True):
 
         real mu_init;
         real mu_spread;
+        real sig_init;
+        real sig_spread;
 
     }
     parameters {
@@ -106,7 +108,7 @@ def create_astrostan(overwrite=True):
 
         //Hyperparameters [p(theta_rc, L)]
         mu ~ normal(mu_init, mu_spread); // Prior from seismo
-        sigma ~ normal(0., 1.);
+        sigma ~ normal(sig_init, sig_spread);
         Q ~ normal(1., .25);
         sigo ~ normal(3.0, 1.0);
         L ~ uniform(0.1, 4000.);   // Prior on the length scale
