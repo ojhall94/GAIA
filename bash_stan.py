@@ -487,11 +487,11 @@ if __name__ == "__main__":
                         _numax_err = df.numax_err, _dnu_err = df.dnu_err, _Teff_err = df.Teff_err)
         if args.apokasc:
             if not args.apofull:
-                SC = scalings(df.numax, df.dnu, df.A_Teff + tempdiff,
-                            _numax_err = df.numax_err, _dnu_err = df.dnu_err, _Teff_err = df.A_Teff_err)
+                SC = scalings(df.numax, df.dnu, df.Teff + tempdiff,
+                            _numax_err = df.numax_err, _dnu_err = df.dnu_err, _Teff_err = df.Teff_err)
             if args.apofull:
-                SC = scalings(df.A_numax, df.A_dnu, df.A_Teff + tempdiff,
-                            _numax_err = df.A_numax_err, _dnu_err = df.A_dnu_err, _Teff_err = df.A_Teff_err)
+                SC = scalings(df.A_numax, df.A_dnu, df.Teff + tempdiff,
+                            _numax_err = df.A_numax_err, _dnu_err = df.A_dnu_err, _Teff_err = df.Teff_err)
 
         SC.give_corrections(fdnu = fdnu)
 
