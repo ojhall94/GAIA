@@ -464,7 +464,7 @@ if __name__ == "__main__":
         if type == 'gaia':
             kdf = read_data()
             from sklearn.utils import shuffle
-            df = shuffle(kdf, random_state=24601)[:50].reset_index()
+            df = shuffle(kdf, random_state=24601)[:1000].reset_index()
             shuffle=True
 
     else:
@@ -554,7 +554,7 @@ if __name__ == "__main__":
         if shuffle:
             kdf['M_infd'] = M_infd
             kdf['M_infd_std'] = M_infd_std
-            shuf_kdf = shuffle(kdf, random_state=24601)[:100].reset_index()
+            shuf_kdf = shuffle(kdf, random_state=24601)[:1000].reset_index()
             M_infd = shuf_kdf['M_infd']
             M_infd_std = shuf_kdf['M_infd_std']
 
