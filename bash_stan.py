@@ -571,7 +571,7 @@ if __name__ == "__main__":
                 'mu_init': astres['mu'].values[0],
                 'mu_spread': astres['mu_std'].values[0],
                 'sig_init': astres['sigma'].values[0],
-                'sig_spread': astres['sigma_std'].values[0]}}
+                'sig_spread': astres['sigma_std'].values[0]}
 
 
         init= {'mu': astres.mu.values[0],
