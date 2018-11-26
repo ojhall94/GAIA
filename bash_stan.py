@@ -465,7 +465,6 @@ if __name__ == "__main__":
             kdf = read_data()
             from sklearn.utils import shuffle
             df = shuffle(kdf, random_state=24601)[:1000].reset_index()
-            shuffle=True
 
     else:
         from sklearn.utils import shuffle

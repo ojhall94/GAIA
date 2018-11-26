@@ -18,7 +18,7 @@
 
 ################################
 # #ASTEROSEISMIC MODEL
-python bash_stan.py 'astero' 10000 'None' 'GAIA' 0.0 --update
+#python bash_stan.py 'astero' 10000 'None' 'GAIA' 0.0 --update
 # ################################ YU ET AL FULL SAMPLE PROP LOG AND TEFF
 # #Tempdiff in K, no correction
 # for i in {-50..50..10}; do
@@ -31,14 +31,14 @@ python bash_stan.py 'astero' 10000 'None' 'GAIA' 0.0 --update
 # done
 # ################################ APOKASC TEFF ONLY
 #Tempdiff in K, no correction
-for i in {-50..50..10}; do
-     python bash_stan.py 'astero' 10000 'None' 'GAIA' $i -a
-done
+#for i in {-50..50..10}; do
+#     python bash_stan.py 'astero' 10000 'None' 'GAIA' $i -a
+#done
 
 #Temp diff in K, with correction
-for i in {-50..50..10}; do
-     python bash_stan.py 'astero' 10000 'RC' 'GAIA' $i -a
-done
+#for i in {-50..50..10}; do
+#     python bash_stan.py 'astero' 10000 'RC' 'GAIA' $i -a
+#done
 
 ################################
 #GAIA MODEL
