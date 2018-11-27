@@ -547,7 +547,7 @@ if __name__ == "__main__":
             M_infd, M_infd_std = read_astero_output(band+'_tempscale_Clump', str(tempdiff), 'astero')
         elif args.apokasc:
             astres = read_paramdict('APOKASC_'+band+'_tempscale_Clump', str(tempdiff), 'astero')
-            M_infd, M_infd_std = read_astero_output('APOKASC_'+band+'_tempscale_Clump', str(tempdiff), 'astero')
+            M_infd, M_infd_std = read_astero_output(band+'_tempscale_Clump', str(tempdiff), 'astero')
 
         #Make sure these values are shuffled in in the right order
         if shuffle:
