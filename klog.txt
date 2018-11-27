@@ -1,0 +1,76 @@
+INFO:pystan:COMPILING THE C++ CODE FOR MODEL astrostan_9f5318f265d2b7ff3d0f101b589bdb5c NOW.
+Updating Stan model
+WARNING:pystan:dynamic module does not define init function (initstanfit4astrostan_9f5318f265d2b7ff3d0f101b589bdb5c_5691091035089971243)
+WARNING:pystan:Something went wrong while unpickling the StanModel. Consider recompiling.
+Traceback (most recent call last):
+  File "bash_stan.py", line 603, in <module>
+    run(verbose=True, visual=args.visual)
+  File "bash_stan.py", line 330, in __call__
+    fit = self.run_stan()
+  File "bash_stan.py", line 285, in run_stan
+    init = [self.init, self.init, self.init, self.init])
+  File "/home/ADF/ojh251/.local/lib/python2.7/site-packages/pystan/model.py", line 721, in sampling
+    fit = self.fit_class(data, seed)
+AttributeError: StanModel instance has no attribute 'fit_class'
+WARNING:pystan:dynamic module does not define init function (initstanfit4astrostan_9f5318f265d2b7ff3d0f101b589bdb5c_5691091035089971243)
+WARNING:pystan:Something went wrong while unpickling the StanModel. Consider recompiling.
+Traceback (most recent call last):
+  File "bash_stan.py", line 603, in <module>
+    run(verbose=True, visual=args.visual)
+  File "bash_stan.py", line 330, in __call__
+    fit = self.run_stan()
+  File "bash_stan.py", line 285, in run_stan
+    init = [self.init, self.init, self.init, self.init])
+  File "/home/ADF/ojh251/.local/lib/python2.7/site-packages/pystan/model.py", line 721, in sampling
+    fit = self.fit_class(data, seed)
+AttributeError: StanModel instance has no attribute 'fit_class'
+WARNING:pystan:dynamic module does not define init function (initstanfit4astrostan_9f5318f265d2b7ff3d0f101b589bdb5c_5691091035089971243)
+WARNING:pystan:Something went wrong while unpickling the StanModel. Consider recompiling.
+Traceback (most recent call last):
+  File "bash_stan.py", line 603, in <module>
+    run(verbose=True, visual=args.visual)
+  File "bash_stan.py", line 330, in __call__
+    fit = self.run_stan()
+  File "bash_stan.py", line 285, in run_stan
+    init = [self.init, self.init, self.init, self.init])
+  File "/home/ADF/ojh251/.local/lib/python2.7/site-packages/pystan/model.py", line 721, in sampling
+    fit = self.fit_class(data, seed)
+AttributeError: StanModel instance has no attribute 'fit_class'
+./bash_k.sh: line 52: Tempdiff: command not found
+Traceback (most recent call last):
+  File "bash_stan.py", line 554, in <module>
+    kdf['M_infd'] = M_infd
+  File "/home/ADF/ojh251/.local/lib/python2.7/site-packages/pandas/core/frame.py", line 3119, in __setitem__
+    self._set_item(key, value)
+  File "/home/ADF/ojh251/.local/lib/python2.7/site-packages/pandas/core/frame.py", line 3194, in _set_item
+    value = self._sanitize_column(key, value)
+  File "/home/ADF/ojh251/.local/lib/python2.7/site-packages/pandas/core/frame.py", line 3391, in _sanitize_column
+    value = _sanitize_index(value, self.index, copy=False)
+  File "/home/ADF/ojh251/.local/lib/python2.7/site-packages/pandas/core/series.py", line 4001, in _sanitize_index
+    raise ValueError('Length of values does not match length of ' 'index')
+ValueError: Length of values does not match length of index
+Traceback (most recent call last):
+  File "bash_stan.py", line 554, in <module>
+    kdf['M_infd'] = M_infd
+  File "/home/ADF/ojh251/.local/lib/python2.7/site-packages/pandas/core/frame.py", line 3119, in __setitem__
+    self._set_item(key, value)
+  File "/home/ADF/ojh251/.local/lib/python2.7/site-packages/pandas/core/frame.py", line 3194, in _set_item
+    value = self._sanitize_column(key, value)
+  File "/home/ADF/ojh251/.local/lib/python2.7/site-packages/pandas/core/frame.py", line 3391, in _sanitize_column
+    value = _sanitize_index(value, self.index, copy=False)
+  File "/home/ADF/ojh251/.local/lib/python2.7/site-packages/pandas/core/series.py", line 4001, in _sanitize_index
+    raise ValueError('Length of values does not match length of ' 'index')
+ValueError: Length of values does not match length of index
+Traceback (most recent call last):
+  File "bash_stan.py", line 554, in <module>
+    kdf['M_infd'] = M_infd
+  File "/home/ADF/ojh251/.local/lib/python2.7/site-packages/pandas/core/frame.py", line 3119, in __setitem__
+    self._set_item(key, value)
+  File "/home/ADF/ojh251/.local/lib/python2.7/site-packages/pandas/core/frame.py", line 3194, in _set_item
+    value = self._sanitize_column(key, value)
+  File "/home/ADF/ojh251/.local/lib/python2.7/site-packages/pandas/core/frame.py", line 3391, in _sanitize_column
+    value = _sanitize_index(value, self.index, copy=False)
+  File "/home/ADF/ojh251/.local/lib/python2.7/site-packages/pandas/core/series.py", line 4001, in _sanitize_index
+    raise ValueError('Length of values does not match length of ' 'index')
+ValueError: Length of values does not match length of index
+Complete!

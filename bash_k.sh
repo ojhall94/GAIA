@@ -42,7 +42,7 @@
 
 # ################################
 #GAIA MODEL
-python bash_stan.py 'gaia' 10 'None' 'K' 0.0 --update
+#python bash_stan.py 'gaia' 10 'None' 'K' 0.0 --update
 ################################ YU ET AL SAMPLE
 #Tempdiff in K [Always RC corrected]
 for i in {-50..50..50}; do
