@@ -417,9 +417,13 @@ def kernel(ra, dec, sigma, p):
     p[0] : Offset
     p[1] : Exponential decay scale
     '''
-    thetaij = np.sqrt(np.subtract.outer(ra, ra)**2 + np.subtract.outer(dec, dec)**2)
+    dr = np.deg2rad(dec)
+    thetaij = np.sqrt((np.subtract.outer(ra, ra)*np.cos(0.5*np.add.outer(dr, dr)))**2 + np.subtract.outer(dec, dec)**2)
     cov = p[0] * np.exp(-thetaij / p[1])
     np.fill_diagonal(cov, np.diag(cov) + sigma**2)
+
+    if not np.all(np.linalg.eigvals(cov) > 0):
+        raise ValueError("The matrix isn't positive-definite for some reason!")
     return cov
 
 def get_covmatrix(df):
@@ -485,19 +489,21 @@ if __name__ == "__main__":
             SC = scalings(df.numax, df.dnu, df.Teff + tempdiff,
                         _numax_err = df.numax_err, _dnu_err = df.dnu_err, _Teff_err = df.Teff_err)
         if args.apokasc:
-            if not args.apofull:
-                SC = scalings(df.numax, df.dnu, df.Teff + tempdiff,
-                            _numax_err = df.numax_err, _dnu_err = df.dnu_err, _Teff_err = df.Teff_err)
-            if args.apofull:
-                SC = scalings(df.A_numax, df.A_dnu, df.Teff + tempdiff,
-                            _numax_err = df.A_numax_err, _dnu_err = df.A_dnu_err, _Teff_err = df.Teff_err)
+            SC = scalings(df.numax, df.dnu, df.Teff + tempdiff,
+                        _numax_err = df.numax_err, _dnu_err = df.dnu_err, _Teff_err = df.Teff_err)
 
         SC.give_corrections(fdnu = fdnu)
 
         BCs = get_bcs(tempdiff)
         df = pd.merge(df, BCs, how='left', on='KICID')
 
-        bcerr = 0.02 # We assume an error of 0.02mag on the bolometric correction (roughly 1 to 2 %)
+        if band == 'GAIA':
+            bcerr = 0.03 #Estimated via a Monte Carlo sampled 5000 times for 1000 stars
+        if band == 'K':
+            bcerr = np.zeros(len(df))
+            bcerr[np.where(df.Teff_err / df.Teff >= 0.025)] = 0.09   #Estimated via a Monte Carlo sampled 5000 times for 1000 stars
+            bcerr[np.where(df.Teff_err / df.Teff < 0.025)] = 0.05    #Estimated via a Monte Carlo sampled 5000 times for 1000 stars
+
         Mobs = SC.get_bolmag() - df['BC_'+band]
         Munc = np.sqrt(SC.get_bolmag_err()**2 + bcerr**2)
 
