@@ -17,32 +17,32 @@
 #   -af, --apofull  Turn on to propagate full APOKASC data
 
 ################################
-#ASTEROSEISMIC MODEL
-python bash_stan.py 'astero' 10000 'None' 'GAIA' 0.0 --update
-################################ YU ET AL FULL SAMPLE PROP LOG AND TEFF
+# #ASTEROSEISMIC MODEL
+#python bash_stan.py 'astero' 10000 'None' 'GAIA' 0.0 --update
+# ################################ YU ET AL FULL SAMPLE PROP LOG AND TEFF
+# #Tempdiff in K, no correction
+# for i in {-50..50..10}; do
+#      python bash_stan.py 'astero' 10000 'None' 'GAIA' $i
+# done
+#
+# #Temp diff in K, with correction
+# for i in {-50..50..10}; do
+#      python bash_stan.py 'astero' 10000 'RC' 'GAIA' $i
+# done
+# ################################ APOKASC TEFF ONLY
 #Tempdiff in K, no correction
-for i in {-50..50..10}; do
-     python bash_stan.py 'astero' 10000 'None' 'GAIA' $i
-done
+#for i in {-50..50..10}; do
+#     python bash_stan.py 'astero' 10000 'None' 'GAIA' $i -a
+#done
 
 #Temp diff in K, with correction
-for i in {-50..50..10}; do
-     python bash_stan.py 'astero' 10000 'RC' 'GAIA' $i
-done
-################################ APOKASC TEFF ONLY
-#Tempdiff in K, no correction
-for i in {-50..50..10}; do
-     python bash_stan.py 'astero' 10000 'None' 'GAIA' $i -a
-done
-
-#Temp diff in K, with correction
-for i in {-50..50..10}; do
-     python bash_stan.py 'astero' 10000 'RC' 'GAIA' $i -a
-done
+#for i in {-50..50..10}; do
+#     python bash_stan.py 'astero' 10000 'RC' 'GAIA' $i -a
+#done
 
 ################################
 #GAIA MODEL
-python bash_stan.py 'gaia' 5000 'None' 'GAIA' 0.0 --update
+#python bash_stan.py 'gaia' 5000 'None' 'GAIA' 0.0 --update
 ################################ YU ET AL SAMPLE
 #Tempdiff in K [Always RC corrected]
 for i in {-50..50..50}; do
