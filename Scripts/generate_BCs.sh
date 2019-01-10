@@ -23,3 +23,11 @@ for i in {-100..100..20}; do
     cd ~/PhD/Gaia_Project/GAIA/Scripts/
     python generate_BCs.py $i 'unload'
 done
+
+for i in {-100..100..20}; do
+    python generate_BCs.py $i 'load' -pl -a
+    cd ~/PhD/Hacks_and_Mocks/bolometric-corrections/BCcodes/
+    ./bcall
+    cd ~/PhD/Gaia_Project/GAIA/Scripts/
+    python generate_BCs.py $i 'unload'
+done
